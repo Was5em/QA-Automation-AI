@@ -200,5 +200,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-footer {visibility: hidden;}
-div[data-testid="stAppViewContainer"] { margin-bottom: -50px;}
