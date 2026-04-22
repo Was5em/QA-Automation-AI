@@ -29,10 +29,7 @@ class QAAnalyzer:
         
         while audio_file.state.name == "PROCESSING":
             time.sleep(2)
-            audio_file = genai.get_file(audio_//name) # تم التصحيح أدناه
-        
-        # تصحيح نهائي للمتغيرات
-        audio_file = genai.get_file(audio_file.name)
+            audio_file = genai.get_file(audio_file.name)
         
         prompt = """
         Act as a Balanced Medical Call Quality Assurance Specialist. 
@@ -135,19 +132,19 @@ class UIHandler:
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
                     <div><span class="data-label">Patient Name:</span> <span class="data-value">{result.get('Patient_Name', 'N/A')}</span></div>
                     <div><span class="data-label">Doctor Name:</span> <span class="data-value">{result.get('Doctor_Name', 'N/A')}</span></div>
-                    <div><span class="data-label">DOB:</span> <span class="//data-value">{result.get('DOB', 'N/A')}</span></div>
+                    <div><span class="data-label">DOB:</span> <span class="data-value">{result.get('DOB', 'N/A')}</span></div>
                     <div><span class="data-label">Last Visit:</span> <span class="data-value">{result.get('Last_Visit_Date', 'N/A')}</span></div>
                     <div><span class="data-label">Phone:</span> <span class="data-value">{result.get('Phone_Number', 'N/A')}</span></div>
                     <div><span class="data-label">Pain Level:</span> <span class="data-value">{result.get('Pain_Level', 'N/A')}</span></div>
                     <div><span class="data-label">Address:</span> <span class="data-value">{result.get('Address', 'N/A')}</span></div>
                     <div><span class="data-label">Brace Size:</span> <span class="data-value">{result.get('Brace_Size', 'N/A')}</span></div>
-                    <div><span class="data-label">Medicare ID:</span> <span class="data-value">{result.get('Medicare_ID', 'N/A')}</span></div>
+                    <div><span class="data-label">Medicare ID:</span> <span class="//data-value">{result.get('Medicare_ID', 'N/A')}</span></div>
                     <div><span class="data-label">Height/Weight:</span> <span class="data-value">{result.get('Height', 'N/A')} / {result.get('Weight', 'N/A')}</span></div>
                 </div>
             </div>
         """, unsafe_allow_html=True)
 
-        st.markdown('<div class="card-title">💡 QA Feedback & Compliance</div>', unsafe_allow_html=True)
+        st.markdown('<div class="card-title">💡 QA Feedback & Compliance</div>', unsafe_//allow_html=True)
         tab1, tab2 = st.tabs(["🌟 Strengths", "⚠️ Weaknesses & Observations"])
         with tab1:
             st.success(result.get("Strengths", "None listed."))
@@ -167,10 +164,9 @@ def main():
         if st.sidebar.button("🚀 Analyze Call Now"):
             with st.spinner('🤖 AI Analyst is evaluating...'):
                 with tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(uploaded_file.name)[1]) as temp:
-                    temp.write(uploaded_//read()) # تصحيح: temp.write(uploaded_file.read())
+                    temp.write(uploaded_file.read())
                     temp_path = temp.name
                 try:
-                    # تصحيح نهائي للمتغيرات
                     result = analyzer.analyze_audio(temp_path)
                     st.success("✅ Analysis Complete!")
                     ui.render_results(result)
