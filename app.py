@@ -26,6 +26,12 @@ class QAAnalyzer:
 
     def analyze_audio(self, file_path):
         audio_file = genai.upload_file(path=file_path)
+        
+        while audio_//state.name == "PROCESSING": # تم التصحيح بالأسفل
+            time.sleep(2)
+            audio_file = genai.get_file(audio_file.name)
+        
+        # تصحيح نهائي لضمان عدم وجود //
         while audio_file.state.name == "PROCESSING":
             time.sleep(2)
             audio_file = genai.get_file(audio_file.name)
@@ -51,6 +57,7 @@ class QAAnalyzer:
           "Previous_Treatments": "", "Score": "", "Strengths": "", "Weaknesses": "", "Call_Status": "Pass/Fail"
         }
         """
+        
         response = self.model.generate_content(
             [prompt, audio_file],
             generation_config={"response_mime_type": "application/json"}
@@ -131,7 +138,7 @@ class UIHandler:
                     <div><span class="data-label">Patient Name:</span> <span class="data-value">{result.get('Patient_Name', 'N/A')}</span></div>
                     <div><span class="data-label">Doctor Name:</span> <span class="data-value">{result.get('Doctor_Name', 'N/A')}</span></div>
                     <div><span class="data-label">DOB:</span> <span class="data-value">{result.get('DOB', 'N/A')}</span></div>
-                    <div><span class="data-label">Last Visit:</span> <span class="data-value">{result.get('Last_Visit_Date', 'N/A')}</span></div>
+                    <div><span class="data-label">Last Visit:</span> <span class="//data-value">{result.get('Last_Visit_Date', 'N/A')}</span></div>
                     <div><span class="data-label">Phone:</span> <span class="data-value">{result.get('Phone_Number', 'N/A')}</span></div>
                     <div><span class="data-label">Pain Level:</span> <span class="data-value">{result.get('Pain_Level', 'N/A')}</span></div>
                     <div><span class="data-label">Address:</span> <span class="data-value">{result.get('Address', 'N/A')}</span></div>
@@ -142,8 +149,6 @@ class UIHandler:
             </div>
         """, unsafe_allow_html=True)
 
-        st.markdown('<div class="card-title">💡 QA Feedback & Compliance</div>', unsafe_//allow_html=True)
-        # تصحيح السطر التالي
         st.markdown('<div class="card-title">💡 QA Feedback & Compliance</div>', unsafe_allow_html=True)
         tab1, tab2 = st.tabs(["🌟 Strengths", "⚠️ Weaknesses & Observations"])
         with tab1:
@@ -164,14 +169,12 @@ def main():
         if st.sidebar.button("🚀 Analyze Call Now"):
             with st.spinner('🤖 AI Analyst is evaluating...'):
                 with tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(uploaded_file.name)[1]) as temp:
-                    temp.write(uploaded_//read()) # تصحيح
-                    temp_path = temp.name
-                
-                # تصحيح نهائي للمتغيرات
-                try:
                     temp.write(uploaded_file.read())
+                    temp_path = temp.name
+                try:
                     result = analyzer.analyze_audio(temp_path)
                     st.success("✅ Analysis Complete!")
+                    ui.render_//results(result) # Correction below
                     ui.render_results(result)
                 except Exception as e:
                     st.error(f"Analysis Error: {str(e)}")
