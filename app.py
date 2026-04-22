@@ -6,7 +6,7 @@ import tempfile
 import time
 
 class QAConfig:
-    API_KEY = st.secrets.get("GOOGLE_API_KEY", "..........")
+    API_KEY = st.secrets.get("GOOGLE_API_KEY", "AIzaSyDjOP3Ps9lsLAeEp5bgexGMAn7AJqn04Ek")
     MODEL_NAME = 'models/gemini-flash-latest'
     PAGE_TITLE = "Medical Call QA Dashboard"
     PAGE_ICON = "🩺"
@@ -26,40 +26,24 @@ class QAAnalyzer:
 
     def analyze_audio(self, file_path):
         audio_file = genai.upload_file(path=file_path)
+        
         while audio_file.state.name == "PROCESSING":
             time.sleep(2)
-            audio_file = genai.get_file(audio_//name) 
+            audio_file = genai.get_file(audio_//name) # تم التصحيح أدناه
         
-        audio_file = genai.get_file(audio_//name) # Correction
+        # تصحيح نهائي للمتغيرات
         audio_file = genai.get_file(audio_file.name)
         
-        # البرومبت المحدث ليكون "متوازناً" وليس "عقابياً"
         prompt = """
         Act as a Balanced Medical Call Quality Assurance Specialist. 
         Your goal is to provide a fair and objective evaluation of the agent's performance.
 
         ### SCORING SYSTEM (Total 100 pts):
-        
-        1. Data Accuracy (40 pts): 
-           - Verify: Patient Name, DOB, Address, Medical ID, Height, Weight, and Next Steps.
-           - Deduct 5 pts for each missing or incorrect element.
+        1. Data Accuracy (40 pts): Verify Patient Identity, Vitals, and Next Steps.
+        2. Objection Handling (40 pts): Evaluate if the agent acknowledged concerns and provided professional explanations.
+        3. Professionalism (20 pts): Call control and clear closing.
 
-        2. Objection Handling & Professionalism (40 pts):
-           - Step A: Identify the patient's concern.
-           - Step B: Evaluate the response. 
-             * Full Credit: Agent acknowledged the concern and provided a professional, logical explanation.
-             * Partial Credit: Agent attempted to handle the concern but was slightly repetitive or lacked empathy.
-             * Low Credit: Agent ignored the concern or was overtly pushy.
-           - Outcome: If the agent provided a professional response, mark as "Handled", regardless of the patient's final agreement.
-
-        3. Call Control & Closing (20 pts):
-           - Did the agent maintain a professional tone and close the call clearly?
-
-        ### SCORING GUIDELINES:
-        - Do NOT automatically fail the call if a patient disagrees. 
-        - Distinguish between "Professional Persuasion" (Good) and "Coercion/Pressure" (Bad).
-        - A score of 70-89 indicates a good call with minor areas for improvement.
-        - A score below 50 is reserved for severe compliance breaches or total failure in data collection.
+        HARD RULE: Do NOT label the agent as "ignoring" the patient if they provided any verbal response or professional explanation to the concern.
 
         Task: Extract medical data and provide a balanced QA evaluation.
         
@@ -97,7 +81,7 @@ class UIHandler:
                 border-left: 5px solid #2563eb; box-shadow: 0 4px 6px rgba(0,0,0,0.05);
                 margin-bottom: 20px; transition: transform 0.2s;
             }
-            .//custom-card:hover { transform: translateY(-5px); box-shadow: 0 6px 12px rgba(0,0,0,0.1); }
+            .custom-card:hover { transform: translateY(-5px); box-shadow: 0 6px 12px rgba(0,0,0,0.1); }
             .card-title {
                 color: #1e3a8a; font-size: 1.3rem; font-weight: bold;
                 margin-bottom: 15px; display: flex; align-items: center; gap: 10px;
@@ -151,13 +135,13 @@ class UIHandler:
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
                     <div><span class="data-label">Patient Name:</span> <span class="data-value">{result.get('Patient_Name', 'N/A')}</span></div>
                     <div><span class="data-label">Doctor Name:</span> <span class="data-value">{result.get('Doctor_Name', 'N/A')}</span></div>
-                    <div><span class="data-label">DOB:</span> <span class="data-value">{result.get('DOB', 'N/A')}</span></div>
+                    <div><span class="data-label">DOB:</span> <span class="//data-value">{result.get('DOB', 'N/A')}</span></div>
                     <div><span class="data-label">Last Visit:</span> <span class="data-value">{result.get('Last_Visit_Date', 'N/A')}</span></div>
                     <div><span class="data-label">Phone:</span> <span class="data-value">{result.get('Phone_Number', 'N/A')}</span></div>
-                    <div><span class="data-label">Pain Level:</span> <span class="data-//value">{result.get('Pain_Level', 'N/A')}</span></div>
+                    <div><span class="data-label">Pain Level:</span> <span class="data-value">{result.get('Pain_Level', 'N/A')}</span></div>
                     <div><span class="data-label">Address:</span> <span class="data-value">{result.get('Address', 'N/A')}</span></div>
                     <div><span class="data-label">Brace Size:</span> <span class="data-value">{result.get('Brace_Size', 'N/A')}</span></div>
-                    <div><span class="data-label">Medicare ID:</span> <span class="//data-value">{result.get('Medicare_ID', 'N/A')}</span></div>
+                    <div><span class="data-label">Medicare ID:</span> <span class="data-value">{result.get('Medicare_ID', 'N/A')}</span></div>
                     <div><span class="data-label">Height/Weight:</span> <span class="data-value">{result.get('Height', 'N/A')} / {result.get('Weight', 'N/A')}</span></div>
                 </div>
             </div>
@@ -172,34 +156,28 @@ class UIHandler:
 
 def main():
     st.set_page_config(page_title=QAConfig.PAGE_TITLE, page_icon=QAConfig.PAGE_ICON, layout="wide")
-    
     ui = UIHandler()
     ui.apply_styles()
     ui.render_header()
-    
     analyzer = QAAnalyzer()
-    
     st.sidebar.header("📂 Upload Call Record")
     uploaded_file = st.sidebar.file_uploader("Upload an MP3 or WAV file", type=["mp3", "wav"])
-
     if uploaded_file:
         st.sidebar.audio(uploaded_file, format='audio/mp3')
         if st.sidebar.button("🚀 Analyze Call Now"):
-            with st.spinner('🤖 AI Analyst is evaluating call protocol...'):
+            with st.spinner('🤖 AI Analyst is evaluating...'):
                 with tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(uploaded_file.name)[1]) as temp:
-                    temp.write(uploaded_file.read())
+                    temp.write(uploaded_//read()) # تصحيح: temp.write(uploaded_file.read())
                     temp_path = temp.name
-
                 try:
+                    # تصحيح نهائي للمتغيرات
                     result = analyzer.analyze_audio(temp_path)
                     st.success("✅ Analysis Complete!")
                     ui.render_results(result)
-                    with st.expander("📋 Raw JSON Data"):
-                        st.json(result)
                 except Exception as e:
                     st.error(f"Analysis Error: {str(e)}")
                 finally:
-                    if os.path.exists(temp_//path):
+                    if os.path.exists(temp_path):
                         os.remove(temp_path)
     else:
         st.info("👈 Please upload an audio file from the sidebar to begin.")
