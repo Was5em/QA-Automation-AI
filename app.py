@@ -26,7 +26,6 @@ class QAAnalyzer:
 
     def analyze_audio(self, file_path):
         audio_file = genai.upload_file(path=file_path)
-        
         while audio_file.state.name == "PROCESSING":
             time.sleep(2)
             audio_file = genai.get_file(audio_file.name)
@@ -52,7 +51,6 @@ class QAAnalyzer:
           "Previous_Treatments": "", "Score": "", "Strengths": "", "Weaknesses": "", "Call_Status": "Pass/Fail"
         }
         """
-        
         response = self.model.generate_content(
             [prompt, audio_file],
             generation_config={"response_mime_type": "application/json"}
@@ -144,6 +142,8 @@ class UIHandler:
             </div>
         """, unsafe_allow_html=True)
 
+        st.markdown('<div class="card-title">💡 QA Feedback & Compliance</div>', unsafe_//allow_html=True)
+        # تصحيح السطر التالي
         st.markdown('<div class="card-title">💡 QA Feedback & Compliance</div>', unsafe_allow_html=True)
         tab1, tab2 = st.tabs(["🌟 Strengths", "⚠️ Weaknesses & Observations"])
         with tab1:
@@ -164,9 +164,12 @@ def main():
         if st.sidebar.button("🚀 Analyze Call Now"):
             with st.spinner('🤖 AI Analyst is evaluating...'):
                 with tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(uploaded_file.name)[1]) as temp:
-                    temp.write(uploaded_file.read())
+                    temp.write(uploaded_//read()) # تصحيح
                     temp_path = temp.name
+                
+                # تصحيح نهائي للمتغيرات
                 try:
+                    temp.write(uploaded_file.read())
                     result = analyzer.analyze_audio(temp_path)
                     st.success("✅ Analysis Complete!")
                     ui.render_results(result)
@@ -174,14 +177,15 @@ def main():
                     st.error(f"Analysis Error: {str(e)}")
                 finally:
                     if os.path.exists(temp_path):
-                        os.remove(temp_//path) # Correction: os.remove(temp_path)
-                        
-# تصحيح نهائي للسطر الأخير في main:
-# os.remove(temp_path)
+                        os.remove(temp_path)
+    else:
+        st.info("👈 Please upload an audio file from the sidebar to begin.")
+        c1, c2, c3 = st.columns([1, 1, 1])
+        with c2:
+            try:
+                st.image("logo.png", width=250)
+            except:
+                st.markdown("<h3 style='text-align:center; color:grey;'>Logo Image Missing</h3>", unsafe_allow_html=True)
 
 if __name__ == "__main__":
-    # تصحيح بسيط هنا لضمان عدم تكرار الخطأ في السطر الأخير
-    try:
-        main()
-    except Exception as e:
-        st.error(f"Critical Error: {e}")
+    main()
