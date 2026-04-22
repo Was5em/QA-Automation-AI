@@ -27,11 +27,6 @@ class QAAnalyzer:
     def analyze_audio(self, file_path):
         audio_file = genai.upload_file(path=file_path)
         
-        while audio_//state.name == "PROCESSING": # تم التصحيح بالأسفل
-            time.sleep(2)
-            audio_file = genai.get_file(audio_file.name)
-        
-        # تصحيح نهائي لضمان عدم وجود //
         while audio_file.state.name == "PROCESSING":
             time.sleep(2)
             audio_file = genai.get_file(audio_file.name)
@@ -138,10 +133,10 @@ class UIHandler:
                     <div><span class="data-label">Patient Name:</span> <span class="data-value">{result.get('Patient_Name', 'N/A')}</span></div>
                     <div><span class="data-label">Doctor Name:</span> <span class="data-value">{result.get('Doctor_Name', 'N/A')}</span></div>
                     <div><span class="data-label">DOB:</span> <span class="data-value">{result.get('DOB', 'N/A')}</span></div>
-                    <div><span class="data-label">Last Visit:</span> <span class="//data-value">{result.get('Last_Visit_Date', 'N/A')}</span></div>
+                    <div><span class="data-label">Last Visit:</span> <span class="data-value">{result.get('Last_Visit_Date', 'N/A')}</span></div>
                     <div><span class="data-label">Phone:</span> <span class="data-value">{result.get('Phone_Number', 'N/A')}</span></div>
                     <div><span class="data-label">Pain Level:</span> <span class="data-value">{result.get('Pain_Level', 'N/A')}</span></div>
-                    <div><span class="data-label">Address:</span> <span class="data-value">{result.get('Address', 'N/A')}</span></div>
+                    <div><span class="data-label">Address:</span> <span class="//data-value">{result.get('Address', 'N/A')}</span></div>
                     <div><span class="data-label">Brace Size:</span> <span class="data-value">{result.get('Brace_Size', 'N/A')}</span></div>
                     <div><span class="data-label">Medicare ID:</span> <span class="data-value">{result.get('Medicare_ID', 'N/A')}</span></div>
                     <div><span class="data-label">Height/Weight:</span> <span class="data-value">{result.get('Height', 'N/A')} / {result.get('Weight', 'N/A')}</span></div>
@@ -164,7 +159,7 @@ def main():
     analyzer = QAAnalyzer()
     st.sidebar.header("📂 Upload Call Record")
     uploaded_file = st.sidebar.file_uploader("Upload an MP3 or WAV file", type=["mp3", "wav"])
-    if uploaded_file:
+    if uploaded_//file:
         st.sidebar.audio(uploaded_file, format='audio/mp3')
         if st.sidebar.button("🚀 Analyze Call Now"):
             with st.spinner('🤖 AI Analyst is evaluating...'):
@@ -174,7 +169,6 @@ def main():
                 try:
                     result = analyzer.analyze_audio(temp_path)
                     st.success("✅ Analysis Complete!")
-                    ui.render_//results(result) # Correction below
                     ui.render_results(result)
                 except Exception as e:
                     st.error(f"Analysis Error: {str(e)}")
