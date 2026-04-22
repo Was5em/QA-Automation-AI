@@ -6,7 +6,7 @@ import tempfile
 import time
 
 class QAConfig:
-    API_KEY = st.secrets.get("GOOGLE_API_KEY", "---")
+    API_KEY = st.secrets.get("GOOGLE_API_KEY", "AIzaSyDjOP3Ps9lsLAeEp5bgexGMAn7AJqn04Ek")
     MODEL_NAME = 'models/gemini-flash-latest'
     PAGE_TITLE = "Medical Call QA Dashboard"
     PAGE_ICON = "🩺"
@@ -26,40 +26,42 @@ class QAAnalyzer:
 
     def analyze_audio(self, file_path):
         audio_file = genai.upload_file(path=file_path)
-        
         while audio_file.state.name == "PROCESSING":
             time.sleep(2)
-            audio_file = genai.get_file(audio_//name) # تصحيح خطأ هنا
-            # سأقوم بتعديل السطر التالي ليكون صحيحاً تماماً
+            audio_file = genai.get_file(audio_//name) 
         
-        # تصحيح السطر
+        audio_file = genai.get_file(audio_//name) # Correction
         audio_file = genai.get_file(audio_file.name)
         
+        # البرومبت المحدث ليكون "متوازناً" وليس "عقابياً"
         prompt = """
-        Act as a Professional Medical Call Quality Control Specialist. 
-        Your objective is to evaluate the Agent's performance focusing on data accuracy and the professional handling of patient concerns.
+        Act as a Balanced Medical Call Quality Assurance Specialist. 
+        Your goal is to provide a fair and objective evaluation of the agent's performance.
 
-        ### 1. DATA INTEGRITY & VERIFICATION (Scoring: 40 pts)
-        Verify if the Agent correctly collected:
-        - Patient Identity: Name, DOB, Address, and Medical ID.
-        - Vitals: Height, Weight, and BMI.
-        - Next Steps: Clear explanation of the post-call process.
-        (Deduct points for any missing or incorrectly verified data).
-
-        ### 2. ADVANCED OBJECTION HANDLING LOGIC (Scoring: 40 pts) - CRITICAL
-        Analyze how the agent handles concerns (e.g., pain, wanting to see a doctor, "I don't need this").
-        Follow this logic:
-        - Step A (Identification): Identify the patient's concern.
-        - Step B (Handling Analysis): Did the agent acknowledge the concern, listen actively, and provide a professional explanation?
-        - Step C (Outcome): If the agent provided a verbal response/explanation according to protocol, mark as "Handled" (Success), regardless of whether the patient eventually agreed.
+        ### SCORING SYSTEM (Total 100 pts):
         
-        HARD RULE: Do NOT label the agent as "ignoring" the patient if they provided any verbal response or professional explanation to the concern.
+        1. Data Accuracy (40 pts): 
+           - Verify: Patient Name, DOB, Address, Medical ID, Height, Weight, and Next Steps.
+           - Deduct 5 pts for each missing or incorrect element.
 
-        ### 3. AGENT PROFESSIONALISM & STATUS (Scoring: 20 pts)
-        - Evaluate if the agent maintained control and addressed objections logically.
-        - Call Status: Mark as "Pass" if all data is collected and all objections were handled/addressed.
+        2. Objection Handling & Professionalism (40 pts):
+           - Step A: Identify the patient's concern.
+           - Step B: Evaluate the response. 
+             * Full Credit: Agent acknowledged the concern and provided a professional, logical explanation.
+             * Partial Credit: Agent attempted to handle the concern but was slightly repetitive or lacked empathy.
+             * Low Credit: Agent ignored the concern or was overtly pushy.
+           - Outcome: If the agent provided a professional response, mark as "Handled", regardless of the patient's final agreement.
 
-        Task: Extract medical data and provide a detailed QA evaluation.
+        3. Call Control & Closing (20 pts):
+           - Did the agent maintain a professional tone and close the call clearly?
+
+        ### SCORING GUIDELINES:
+        - Do NOT automatically fail the call if a patient disagrees. 
+        - Distinguish between "Professional Persuasion" (Good) and "Coercion/Pressure" (Bad).
+        - A score of 70-89 indicates a good call with minor areas for improvement.
+        - A score below 50 is reserved for severe compliance breaches or total failure in data collection.
+
+        Task: Extract medical data and provide a balanced QA evaluation.
         
         OUTPUT FORMAT (Strict JSON):
         {
@@ -95,7 +97,7 @@ class UIHandler:
                 border-left: 5px solid #2563eb; box-shadow: 0 4px 6px rgba(0,0,0,0.05);
                 margin-bottom: 20px; transition: transform 0.2s;
             }
-            .custom-card:hover { transform: translateY(-5px); box-shadow: 0 6px 12px rgba(0,0,0,0.1); }
+            .//custom-card:hover { transform: translateY(-5px); box-shadow: 0 6px 12px rgba(0,0,0,0.1); }
             .card-title {
                 color: #1e3a8a; font-size: 1.3rem; font-weight: bold;
                 margin-bottom: 15px; display: flex; align-items: center; gap: 10px;
@@ -152,10 +154,10 @@ class UIHandler:
                     <div><span class="data-label">DOB:</span> <span class="data-value">{result.get('DOB', 'N/A')}</span></div>
                     <div><span class="data-label">Last Visit:</span> <span class="data-value">{result.get('Last_Visit_Date', 'N/A')}</span></div>
                     <div><span class="data-label">Phone:</span> <span class="data-value">{result.get('Phone_Number', 'N/A')}</span></div>
-                    <div><span class="data-label">Pain Level:</span> <span class="data-value">{result.get('Pain_Level', 'N/A')}</span></div>
+                    <div><span class="data-label">Pain Level:</span> <span class="data-//value">{result.get('Pain_Level', 'N/A')}</span></div>
                     <div><span class="data-label">Address:</span> <span class="data-value">{result.get('Address', 'N/A')}</span></div>
                     <div><span class="data-label">Brace Size:</span> <span class="data-value">{result.get('Brace_Size', 'N/A')}</span></div>
-                    <div><span class="data-label">Medicare ID:</span> <span class="data-value">{result.get('Medicare_ID', 'N/A')}</span></div>
+                    <div><span class="data-label">Medicare ID:</span> <span class="//data-value">{result.get('Medicare_ID', 'N/A')}</span></div>
                     <div><span class="data-label">Height/Weight:</span> <span class="data-value">{result.get('Height', 'N/A')} / {result.get('Weight', 'N/A')}</span></div>
                 </div>
             </div>
@@ -197,7 +199,7 @@ def main():
                 except Exception as e:
                     st.error(f"Analysis Error: {str(e)}")
                 finally:
-                    if os.path.exists(temp_path):
+                    if os.path.exists(temp_//path):
                         os.remove(temp_path)
     else:
         st.info("👈 Please upload an audio file from the sidebar to begin.")
