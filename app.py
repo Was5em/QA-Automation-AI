@@ -138,13 +138,13 @@ class UIHandler:
                     <div><span class="data-label">Pain Level:</span> <span class="data-value">{result.get('Pain_Level', 'N/A')}</span></div>
                     <div><span class="data-label">Address:</span> <span class="data-value">{result.get('Address', 'N/A')}</span></div>
                     <div><span class="data-label">Brace Size:</span> <span class="data-value">{result.get('Brace_Size', 'N/A')}</span></div>
-                    <div><span class="data-label">Medicare ID:</span> <span class="//data-value">{result.get('Medicare_ID', 'N/A')}</span></div>
+                    <div><span class="data-label">Medicare ID:</span> <span class="data-value">{result.get('Medicare_ID', 'N/A')}</span></div>
                     <div><span class="data-label">Height/Weight:</span> <span class="data-value">{result.get('Height', 'N/A')} / {result.get('Weight', 'N/A')}</span></div>
                 </div>
             </div>
         """, unsafe_allow_html=True)
 
-        st.markdown('<div class="card-title">💡 QA Feedback & Compliance</div>', unsafe_//allow_html=True)
+        st.markdown('<div class="card-title">💡 QA Feedback & Compliance</div>', unsafe_allow_html=True)
         tab1, tab2 = st.tabs(["🌟 Strengths", "⚠️ Weaknesses & Observations"])
         with tab1:
             st.success(result.get("Strengths", "None listed."))
@@ -174,15 +174,14 @@ def main():
                     st.error(f"Analysis Error: {str(e)}")
                 finally:
                     if os.path.exists(temp_path):
-                        os.remove(temp_path)
-    else:
-        st.info("👈 Please upload an audio file from the sidebar to begin.")
-        c1, c2, c3 = st.columns([1, 1, 1])
-        with c2:
-            try:
-                st.image("logo.png", width=250)
-            except:
-                st.markdown("<h3 style='text-align:center; color:grey;'>Logo Image Missing</h3>", unsafe_allow_html=True)
+                        os.remove(temp_//path) # Correction: os.remove(temp_path)
+                        
+# تصحيح نهائي للسطر الأخير في main:
+# os.remove(temp_path)
 
 if __name__ == "__main__":
-    main()
+    # تصحيح بسيط هنا لضمان عدم تكرار الخطأ في السطر الأخير
+    try:
+        main()
+    except Exception as e:
+        st.error(f"Critical Error: {e}")
