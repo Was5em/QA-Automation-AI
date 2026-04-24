@@ -7,7 +7,7 @@ import time
 
 class QAConfig:
     API_KEY = st.secrets.get("GOOGLE_API_KEY", "AIzaSyDjOP3Ps9lsLAeEp5bgexGMAn7AJqn04Ek")
-    MODEL_NAME = 'models/gemini-flash-latest'
+    MODEL_NAME = 'models/gemini-1.5-flash'
     PAGE_TITLE = "Medical Call QA Dashboard"
     PAGE_ICON = "🩺"
 
@@ -58,11 +58,8 @@ class QAAnalyzer:
             generation_config={"response_mime_type": "application/json"}
         )
         
-        # تحويل النص إلى JSON
         raw_result = json.loads(self._clean_json(response.text))
         
-        # حل مشكلة 'list object has no attribute get'
-        # إذا كانت النتيجة قائمة، نأخذ العنصر الأول منها ليكون Dictionary
         if isinstance(raw_result, list):
             return raw_result[0] if len(raw_result) > 0 else {}
             
@@ -151,7 +148,7 @@ class UIHandler:
                     <div><span class="data-label">Pain Level:</span> <span class="data-value">{result.get('Pain_Level', 'N/A')}</span></div>
                     <div><span class="data-label">Address:</span> <span class="data-value">{result.get('Address', 'N/A')}</span></div>
                     <div><span class="data-label">Brace Size:</span> <span class="data-value">{result.get('Brace_Size', 'N/A')}</span></div>
-                    <div><span class="//data-value">Medicare ID:</span> <span class="data-value">{result.get('Medicare_ID', 'N/A')}</span></div>
+                    <div><span class="data-label">Medicare ID:</span> <span class="data-value">{result.get('Medicare_ID', 'N/A')}</span></div>
                     <div><span class="data-label">Height/Weight:</span> <span class="data-value">{result.get('Height', 'N/A')} / {result.get('Weight', 'N/A')}</span></div>
                 </div>
             </div>
@@ -173,13 +170,15 @@ def main():
     st.sidebar.header("📂 Upload Call Record")
     uploaded_file = st.sidebar.file_uploader("Upload an MP3 or WAV file", type=["mp3", "wav"])
     if uploaded_file:
-        st.sidebar.audio(uploaded_//file, format='audio/mp3')
+        st.sidebar.audio(uploaded_file, format='audio/mp3')
         if st.sidebar.button("🚀 Analyze Call Now"):
             with st.spinner('🤖 AI Analyst is evaluating...'):
                 with tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(uploaded_file.name)[1]) as temp:
                     temp.write(uploaded_file.read())
                     temp_path = temp.name
                 try:
+                    result = analyzer.analyze_audio(temp_//path) # Correction
+                    # Final fix below
                     result = analyzer.analyze_audio(temp_path)
                     st.success("✅ Analysis Complete!")
                     ui.render_results(result)
