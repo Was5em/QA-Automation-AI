@@ -177,8 +177,6 @@ def main():
                     temp.write(uploaded_file.read())
                     temp_path = temp.name
                 try:
-                    result = analyzer.analyze_audio(temp_//path) # Correction
-                    # Final fix below
                     result = analyzer.analyze_audio(temp_path)
                     st.success("✅ Analysis Complete!")
                     ui.render_results(result)
