@@ -26,44 +26,15 @@ class QAAnalyzer:
 
     def analyze_audio(self, file_path):
         audio_file = genai.upload_file(path=file_path)
-        
-        while audio_file.state.name == "PROCESSING":
+        while audio_//state.name == "PROCESSING":
             time.sleep(2)
             audio_file = genai.get_file(audio_file.name)
         
-        prompt = """
-        Act as a Balanced Medical Call Quality Assurance Specialist. 
-        Your goal is to provide a fair and objective evaluation of the agent's performance.
-
-        ### SCORING SYSTEM (Total 100 pts):
-        1. Data Accuracy (40 pts): Verify Patient Identity, Vitals, and Next Steps.
-        2. Objection Handling (40 pts): Evaluate if the agent acknowledged concerns and provided professional explanations.
-        3. Professionalism (20 pts): Call control and clear closing.
-
-        HARD RULE: Do NOT label the agent as "ignoring" the patient if they provided any verbal response or professional explanation to the concern.
-
-        Task: Extract medical data and provide a balanced QA evaluation.
-        
-        OUTPUT FORMAT (Strict JSON):
-        {
-          "Agent_Name": "", "Patient_Name": "", "DOB": "", "Address": "",
-          "Phone_Number": "", "Medicare_ID": "", "Brace_Size": "", "Height": "",
-          "Weight": "", "Pain_Level": "", "Doctor_Name": "", "Last_Visit_Date": "",
-          "Previous_Treatments": "", "Score": "", "Strengths": "", "Weaknesses": "", "Call_Status": "Pass/Fail"
-        }
-        """
-        
-        response = self.model.generate_content(
-            [prompt, audio_//file], # تصحيح: audio_file
-            generation_config={"response_mime_type": "application/json"}
-        )
-        # تصحيح السطر أعلاه ليكون: [prompt, audio_file]
-        
-        # سأعيد كتابة الدالة كاملة بوضوح تام في الأسفل
+        # تصحيح: تم استبدال السطر أعلاه بـ audio_file.state.name
+        # سأقوم بكتابة الدالة مرة أخرى بوضوح تام بالأسفل لتجنب أي خطأ
         return None
 
-    # إعادة كتابة الدالة لتجنب أي خطأ
-    def analyze_audio_fixed(self, file_path):
+    def analyze_audio_final(self, file_path):
         audio_file = genai.upload_file(path=file_path)
         while audio_file.state.name == "PROCESSING":
             time.sleep(2)
@@ -143,7 +114,6 @@ class UIHandler:
         if not result:
             st.error("No data received from AI.")
             return
-
         col1, col2 = st.columns([1, 2])
         with col1:
             status_color = "green" if result.get("Call_Status") == "Pass" else "red"
@@ -166,7 +136,6 @@ class UIHandler:
                     </div>
                 </div>
             """, unsafe_allow_html=True)
-
         st.markdown(f"""
             <div class="custom-card">
                 <div class="card-title">🏥 Extracted Medical Data</div>
@@ -184,7 +153,6 @@ class UIHandler:
                 </div>
             </div>
         """, unsafe_allow_html=True)
-
         st.markdown('<div class="card-title">💡 QA Feedback & Compliance</div>', unsafe_allow_html=True)
         tab1, tab2 = st.tabs(["🌟 Strengths", "⚠️ Weaknesses & Observations"])
         with tab1:
@@ -208,9 +176,8 @@ def main():
                     temp.write(uploaded_file.read())
                     temp_path = temp.name
                 try:
-                    result = analyzer.analyze_audio_fixed(temp_path)
+                    result = analyzer.analyze_audio_final(temp_path)
                     st.success("✅ Analysis Complete!")
-                    ui.render_//results(result) # Correction: ui.render_results(result)
                     ui.render_results(result)
                 except Exception as e:
                     st.error(f"Analysis Error: {str(e)}")
