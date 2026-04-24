@@ -36,45 +36,32 @@ class QAAnalyzer:
             time.sleep(2)
             audio_file = genai.get_file(audio_file.name)
         
+        # برومبت "التحليل البشري": يركز على السرد، السياق، والتقييم النقدي
         prompt = """
-        Act as a Professional Medical Call Quality Assurance Specialist. Your goal is to provide a fair evaluation that balances "Medical Compliance" with "Professional Sales/Objection Handling".
+        Act as a Senior Medical QA Manager with 20 years of experience in auditing medical calls. 
+        Your goal is to provide a human-like, professional, and nuanced evaluation. 
+        Stop using robotic bullet points for the main analysis. Instead, write a professional narrative.
 
-        ### EVALUATION PHILOSOPHY:
-        - Recognize that "Objection Handling" is a key skill. If the agent explains the benefits of the product to a hesitant patient, this should be viewed as a STRENGTH, not a risk.
-        - Distinguish between "Professional Persuasion" (educating the patient to help them) and "Unethical Pressure" (ignoring a hard refusal or being aggressive).
+        ### GUIDELINES FOR HUMAN-LIKE ANALYSIS:
+        1. **Contextual Analysis:** Don't just say "the agent did X". Say "While the agent attempted to do X, the effect on the patient was Y, which suggests Z."
+        2. **Emotional Intelligence:** Analyze the patient's tone (confused, suspicious, angry) and evaluate if the agent's response was emotionally appropriate.
+        3. **Persuasion vs. Pressure:** Evaluate the 'Objection Handling'. If the agent is helpful, call it 'Effective Guidance'. If the agent is too pushy despite a clear 'No', describe it as 'Aggressive Sales Pressure' and explain how it damages trust.
+        4. **Active Listening:** Look for signs of poor listening (e.g., repeating a question the patient already answered) and describe it as a lack of engagement.
 
-        ### CRITICAL EVALUATION CRITERIA:
-        1. Data Accuracy & Compliance (40 pts): 
-           - Did the agent verify all necessary medical data?
-           - Did the agent clearly state the purpose of the call?
-           - Compliance Note: Flag only if the agent completely ignores a clear, repeated "Hard Refusal" or provides false medical information.
-        
-        2. Objection Handling & Communication (40 pts):
-           - Reward the agent for professionally handling hesitation (e.g., explaining why a new version of a walker is better).
-           - Evaluate if the agent remained patient and respectful throughout the conversation.
-           - RED FLAG: Excessive repetition of the same question that suggests the agent isn't listening.
-        
-        3. Professionalism & Ethics (20 pts):
-           - Did the agent maintain a professional tone?
-           - Was the closing clear and professional?
+        ### SCORING LOGIC:
+        - Be fair but critical. A 100/100 is for a perfect call.
+        - Deduct points for compliance risks, poor listening, or ignoring the patient's emotional state.
+        - Reward genuine empathy and professional persistence.
 
-        ### SCORING GUIDELINES:
-        - 90-100: Flawless call, excellent objection handling, and full compliance.
-        - 80-89: Great call, handled objections well, maybe minor phrasing issues.
-        - 70-79: Good call, but has some gaps in call control or unnecessary repetition.
-        - Below 70: Major compliance failures or lack of professionalism.
-
-        ### TASK:
-        Analyze the audio. Identify the strengths in how the agent handled the patient's doubts. Only penalize if the agent was genuinely pushy or ignored a direct "No" without attempting a professional explanation.
-
-        OUTPUT FORMAT (Strict JSON object):
+        OUTPUT FORMAT (Strict JSON):
         {
           "Agent_Name": "", "Patient_Name": "", "DOB": "", "Address": "",
           "Phone_Number": "", "Medicare_ID": "", "Brace_Size": "", "Height": "",
           "Weight": "", "Pain_Level": "", "Doctor_Name": "", "Last_Visit_Date": "",
           "Previous_Treatments": "", "Score": "Numerical value", 
-          "Strengths": "Highlight professional objection handling and patience", 
-          "Weaknesses": "Detail only genuine errors or excessive pressure", 
+          "Detailed_Analysis": "Write a 2-3 paragraph professional narrative. Discuss the call's flow, the agent's emotional intelligence, and the overall quality of the interaction. Make it sound like a senior manager writing a feedback report for a trainee. Use phrases like 'I noticed that...', 'It appears that...', 'The agent successfully handled... but failed to...'",
+          "Strengths": "A brief summary of the top 2-3 strengths", 
+          "Weaknesses": "A brief summary of the top 2-3 critical gaps", 
           "Call_Status": "Pass (if Score >= 75) / Fail (if Score < 75)"
         }
         """
@@ -116,7 +103,12 @@ class UIHandler:
                 border-left: 5px solid #2563eb; box-shadow: 0 4px 6px rgba(0,0,0,0.05);
                 margin-bottom: 20px; transition: transform 0.2s;
             }
-            .custom-card:hover { transform: translateY(-5px); box-shadow: 0 6px 12px rgba(0,0,0,0.1); }
+            .narrative-box {
+                background-color: #ffffff; padding: 25px; border-radius: 15px;
+                border: 1px solid #d1d5db; box-shadow: inset 0 2px 4px rgba(0,0,0,0.05);
+                font-family: 'Georgia', serif; line-height: 1.7; color: #334155;
+                font-size: 1.1rem; margin-bottom: 20px; text-align: justify;
+            }
             .card-title {
                 color: #1e3a8a; font-size: 1.3rem; font-weight: bold;
                 margin-bottom: 15px; display: flex; align-items: center; gap: 10px;
@@ -141,7 +133,6 @@ class UIHandler:
 
     @staticmethod
     def generate_report_text(res):
-        """تحويل النتيجة إلى نص منسق سهل النسخ"""
         report = f"""
 --- MEDICAL CALL QA REPORT ---
 Date: {time.strftime('%Y-%m-%d %H:%M')}
@@ -149,21 +140,10 @@ Agent: {res.get('Agent_Name', 'N/A')}
 Score: {res.get('Score', 'N/A')}/100
 Status: {res.get('Call_Status', 'N/A')}
 
-[Patient Information]
-- Name: {res.get('Patient_Name', 'N/A')}
-- DOB: {res.get('DOB', 'N/A')}
-- Phone: {res.get('Phone_Number', 'N/A')}
-- Address: {res.get('Address', 'N/A')}
-- Medicare ID: {res.get('Medicare_ID', 'N/A')}
+[Senior Manager's Analysis]
+{res.get('Detailed_Analysis', 'N/A')}
 
-[Medical Details]
-- Doctor: {res.get('Doctor_Name', 'N/A')}
-- Last Visit: {res.get('Last_Visit_Date', 'N/A')}
-- Pain Level: {res.get('Pain_Level', 'N/A')}
-- Height/Weight: {res.get('Height', 'N/A')} / {res.get('Weight', 'N/A')}
-- Brace Size: {res.get('Brace_Size', 'N/A')}
-
-[QA Feedback]
+[Quick Summary]
 🌟 Strengths: {res.get('Strengths', 'N/A')}
 ⚠️ Weaknesses: {res.get('Weaknesses', 'N/A')}
 ------------------------------
@@ -176,7 +156,6 @@ Status: {res.get('Call_Status', 'N/A')}
             st.error("No data received from AI.")
             return
         
-        # --- الجزء الأول: الكروت العلوية ---
         col1, col2 = st.columns([1, 2])
         with col1:
             status_color = "green" if result.get("Call_Status") == "Pass" else "red"
@@ -200,7 +179,15 @@ Status: {res.get('Call_Status', 'N/A')}
                 </div>
             """, unsafe_allow_html=True)
             
-        # --- الجزء الثاني: البيانات الطبية ---
+        # --- الجزء الجديد: التحليل السردي البشري ---
+        st.markdown('<div class="card-title">📝 Senior Auditor\'s Detailed Analysis</div>', unsafe_allow_html=True)
+        st.markdown(f"""
+            <div class="narrative-box">
+                {result.get('Detailed_Analysis', 'No detailed analysis available.')}
+            </div>
+        """, unsafe_allow_html=True)
+
+        # --- البيانات الطبية ---
         st.markdown(f"""
             <div class="custom-card">
                 <div class="card-title">🏥 Extracted Medical Data</div>
@@ -219,18 +206,17 @@ Status: {res.get('Call_Status', 'N/A')}
             </div>
         """, unsafe_allow_html=True)
         
-        # --- الجزء الثالث: التغذية الراجعة ---
-        st.markdown('<div class="card-title">💡 QA Feedback & Compliance</div>', unsafe_allow_html=True)
-        tab1, tab2 = st.tabs(["🌟 Strengths", "⚠️ Weaknesses & Observations"])
+        # --- التغذية الراجعة السريعة ---
+        st.markdown('<div class="card-title">💡 Quick Summary</div>', unsafe_allow_html=True)
+        tab1, tab2 = st.tabs(["🌟 Strengths", "⚠️ Weaknesses"])
         with tab1:
             st.success(result.get("Strengths", "None listed."))
         with tab2:
             st.error(result.get("Weaknesses", "None listed."))
 
-        # --- الجزء الرابع: خانة نسخ النتيجة (الطلب الجديد) ---
-        st.markdown('<div class="card-title" style="margin-top: 2rem;">📋 Copy Analysis Report</div>', unsafe_allow_html=True)
+        # --- خانة نسخ النتيجة ---
+        st.markdown('<div class="card-title" style="margin-top: 2rem;">📋 Copy Full Report</div>', unsafe_allow_html=True)
         report_text = UIHandler.generate_report_text(result)
-        st.info("Click the copy icon in the top right of the box below to copy the full report.")
         st.code(report_text, language="text")
 
 # ==========================================
@@ -249,7 +235,7 @@ def main():
     if uploaded_file:
         st.sidebar.audio(uploaded_file, format='audio/mp3')
         if st.sidebar.button("🚀 Analyze Call Now"):
-            with st.spinner('🤖 AI Specialist is evaluating...'):
+            with st.spinner('🤖 Senior Auditor is drafting the evaluation...'):
                 with tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(uploaded_file.name)[1]) as temp:
                     temp.write(uploaded_file.read())
                     temp_path = temp.name
