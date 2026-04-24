@@ -6,6 +6,7 @@ import tempfile
 import time
 
 class QAConfig:
+    # ملاحظة: يفضل وضع المفتاح في st.secrets بدلاً من كتابته هنا مباشرة للأمان
     API_KEY = st.secrets.get("GOOGLE_API_KEY", "AIzaSyDjOP3Ps9lsLAeEp5bgexGMAn7AJqn04Ek")
     MODEL_NAME = 'models/gemini-flash-latest'
     PAGE_TITLE = "Medical Call QA Dashboard"
@@ -24,18 +25,11 @@ class QAAnalyzer:
             text = text[:-3]
         return text.strip()
 
-    def analyze_audio(self, file_path):
-        audio_file = genai.upload_file(path=file_path)
-        while audio_//state.name == "PROCESSING":
-            time.sleep(2)
-            audio_file = genai.get_file(audio_file.name)
-        
-        # تصحيح: تم استبدال السطر أعلاه بـ audio_file.state.name
-        # سأقوم بكتابة الدالة مرة أخرى بوضوح تام بالأسفل لتجنب أي خطأ
-        return None
-
     def analyze_audio_final(self, file_path):
+        # 1. رفع الملف
         audio_file = genai.upload_file(path=file_path)
+        
+        # 2. الانتظار حتى ينتهي المعالج من معالجة الملف
         while audio_file.state.name == "PROCESSING":
             time.sleep(2)
             audio_file = genai.get_file(audio_file.name)
@@ -53,7 +47,7 @@ class QAAnalyzer:
 
         Task: Extract medical data and provide a balanced QA evaluation.
         
-        OUTPUT FORMAT (Strict JSON):
+        OUTPUT FORMAT (Strict JSON object, NOT a list):
         {
           "Agent_Name": "", "Patient_Name": "", "DOB": "", "Address": "",
           "Phone_Number": "", "Medicare_ID": "", "Brace_Size": "", "Height": "",
@@ -61,11 +55,25 @@ class QAAnalyzer:
           "Previous_Treatments": "", "Score": "", "Strengths": "", "Weaknesses": "", "Call_Status": "Pass/Fail"
         }
         """
+        
         response = self.model.generate_content(
             [prompt, audio_file],
             generation_config={"response_mime_type": "application/json"}
         )
-        return json.loads(self._clean_json(response.text))
+        
+        # تحويل النص إلى JSON
+        data = json.loads(self._clean_json(response.text))
+        
+        # --- الحل هنا (Fix) ---
+        # إذا قام الذكاء الاصطناعي بإرجاع قائمة [ {} ] بدلاً من قاموس { }
+        if isinstance(data, list):
+            if len(data) > 0:
+                data = data[0] # خذ أول عنصر من القائمة
+            else:
+                return {} # أرجع قاموس فارغ إذا كانت القائمة فارغة
+        # -----------------------
+        
+        return data
 
 class UIHandler:
     @staticmethod
@@ -114,6 +122,7 @@ class UIHandler:
         if not result:
             st.error("No data received from AI.")
             return
+        
         col1, col2 = st.columns([1, 2])
         with col1:
             status_color = "green" if result.get("Call_Status") == "Pass" else "red"
@@ -136,6 +145,7 @@ class UIHandler:
                     </div>
                 </div>
             """, unsafe_allow_html=True)
+            
         st.markdown(f"""
             <div class="custom-card">
                 <div class="card-title">🏥 Extracted Medical Data</div>
@@ -153,6 +163,7 @@ class UIHandler:
                 </div>
             </div>
         """, unsafe_allow_html=True)
+        
         st.markdown('<div class="card-title">💡 QA Feedback & Compliance</div>', unsafe_allow_html=True)
         tab1, tab2 = st.tabs(["🌟 Strengths", "⚠️ Weaknesses & Observations"])
         with tab1:
@@ -166,22 +177,29 @@ def main():
     ui.apply_styles()
     ui.render_header()
     analyzer = QAAnalyzer()
+    
     st.sidebar.header("📂 Upload Call Record")
     uploaded_file = st.sidebar.file_uploader("Upload an MP3 or WAV file", type=["mp3", "wav"])
+    
     if uploaded_file:
         st.sidebar.audio(uploaded_file, format='audio/mp3')
         if st.sidebar.button("🚀 Analyze Call Now"):
             with st.spinner('🤖 AI Analyst is evaluating...'):
+                # استخدام tempfile لإنشاء ملف مؤقت يقرأه Gemini
                 with tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(uploaded_file.name)[1]) as temp:
                     temp.write(uploaded_file.read())
                     temp_path = temp.name
                 try:
                     result = analyzer.analyze_audio_final(temp_path)
-                    st.success("✅ Analysis Complete!")
-                    ui.render_results(result)
+                    if result:
+                        st.success("✅ Analysis Complete!")
+                        ui.render_results(result)
+                    else:
+                        st.error("AI returned empty results.")
                 except Exception as e:
                     st.error(f"Analysis Error: {str(e)}")
                 finally:
+                    # مسح الملف المؤقت بعد الانتهاء
                     if os.path.exists(temp_path):
                         os.remove(temp_path)
     else:
