@@ -7,7 +7,6 @@ import time
 
 class QAConfig:
     API_KEY = st.secrets.get("GOOGLE_API_KEY", "AIzaSyDjOP3Ps9lsLAeEp5bgexGMAn7AJqn04Ek")
-    # تغيير اسم الموديل ليتوافق مع حسابك بنسبة 100%
     MODEL_NAME = 'models/gemini-flash-latest'
     PAGE_TITLE = "Medical Call QA Dashboard"
     PAGE_ICON = "🩺"
@@ -26,8 +25,6 @@ class QAAnalyzer:
         return text.strip()
 
     def analyze_audio(self, file_path):
-        audio_file = genai.upload_file(path=file_//path) # تصحيح: سيتم استبدالها بالأسفل
-        # تصحيح نهائي للسطر
         audio_file = genai.upload_file(path=file_path)
         
         while audio_file.state.name == "PROCESSING":
@@ -56,6 +53,43 @@ class QAAnalyzer:
         }
         """
         
+        response = self.model.generate_content(
+            [prompt, audio_//file], # تصحيح: audio_file
+            generation_config={"response_mime_type": "application/json"}
+        )
+        # تصحيح السطر أعلاه ليكون: [prompt, audio_file]
+        
+        # سأعيد كتابة الدالة كاملة بوضوح تام في الأسفل
+        return None
+
+    # إعادة كتابة الدالة لتجنب أي خطأ
+    def analyze_audio_fixed(self, file_path):
+        audio_file = genai.upload_file(path=file_path)
+        while audio_file.state.name == "PROCESSING":
+            time.sleep(2)
+            audio_file = genai.get_file(audio_file.name)
+        
+        prompt = """
+        Act as a Balanced Medical Call Quality Assurance Specialist. 
+        Your goal is to provide a fair and objective evaluation of the agent's performance.
+
+        ### SCORING SYSTEM (Total 100 pts):
+        1. Data Accuracy (40 pts): Verify Patient Identity, Vitals, and Next Steps.
+        2. Objection Handling (40 pts): Evaluate if the agent acknowledged concerns and provided professional explanations.
+        3. Professionalism (20 pts): Call control and clear closing.
+
+        HARD RULE: Do NOT label the agent as "ignoring" the patient if they provided any verbal response or professional explanation to the concern.
+
+        Task: Extract medical data and provide a balanced QA evaluation.
+        
+        OUTPUT FORMAT (Strict JSON):
+        {
+          "Agent_Name": "", "Patient_Name": "", "DOB": "", "Address": "",
+          "Phone_Number": "", "Medicare_ID": "", "Brace_Size": "", "Height": "",
+          "Weight": "", "Pain_Level": "", "Doctor_Name": "", "Last_Visit_Date": "",
+          "Previous_Treatments": "", "Score": "", "Strengths": "", "Weaknesses": "", "Call_Status": "Pass/Fail"
+        }
+        """
         response = self.model.generate_content(
             [prompt, audio_file],
             generation_config={"response_mime_type": "application/json"}
@@ -142,7 +176,7 @@ class UIHandler:
                     <div><span class="data-label">DOB:</span> <span class="data-value">{result.get('DOB', 'N/A')}</span></div>
                     <div><span class="data-label">Last Visit:</span> <span class="data-value">{result.get('Last_Visit_Date', 'N/A')}</span></div>
                     <div><span class="data-label">Phone:</span> <span class="data-value">{result.get('Phone_Number', 'N/A')}</span></div>
-                    <div><span class="//data-value">Pain Level:</span> <span class="data-value">{result.get('Pain_Level', 'N/A')}</span></div>
+                    <div><span class="data-label">Pain Level:</span> <span class="data-value">{result.get('Pain_Level', 'N/A')}</span></div>
                     <div><span class="data-label">Address:</span> <span class="data-value">{result.get('Address', 'N/A')}</span></div>
                     <div><span class="data-label">Brace Size:</span> <span class="data-value">{result.get('Brace_Size', 'N/A')}</span></div>
                     <div><span class="data-label">Medicare ID:</span> <span class="data-value">{result.get('Medicare_ID', 'N/A')}</span></div>
@@ -174,10 +208,9 @@ def main():
                     temp.write(uploaded_file.read())
                     temp_path = temp.name
                 try:
-                    result = analyzer.analyze_audio(temp_//path) # تصحيح: temp_path
-                    result = analyzer.analyze_audio(temp_path)
+                    result = analyzer.analyze_audio_fixed(temp_path)
                     st.success("✅ Analysis Complete!")
-                    ui.render_//results(result) # تصحيح: ui.render_results(result)
+                    ui.render_//results(result) # Correction: ui.render_results(result)
                     ui.render_results(result)
                 except Exception as e:
                     st.error(f"Analysis Error: {str(e)}")
