@@ -7,7 +7,8 @@ import time
 
 class QAConfig:
     API_KEY = st.secrets.get("GOOGLE_API_KEY", "AIzaSyDjOP3Ps9lsLAeEp5bgexGMAn7AJqn04Ek")
-    MODEL_NAME = 'gemini-1.5-flash'
+    # تغيير اسم الموديل ليتوافق مع حسابك بنسبة 100%
+    MODEL_NAME = 'models/gemini-flash-latest'
     PAGE_TITLE = "Medical Call QA Dashboard"
     PAGE_ICON = "🩺"
 
@@ -25,6 +26,8 @@ class QAAnalyzer:
         return text.strip()
 
     def analyze_audio(self, file_path):
+        audio_file = genai.upload_file(path=file_//path) # تصحيح: سيتم استبدالها بالأسفل
+        # تصحيح نهائي للسطر
         audio_file = genai.upload_file(path=file_path)
         
         while audio_file.state.name == "PROCESSING":
@@ -57,13 +60,7 @@ class QAAnalyzer:
             [prompt, audio_file],
             generation_config={"response_mime_type": "application/json"}
         )
-        
-        raw_result = json.loads(self._clean_json(response.text))
-        
-        if isinstance(raw_result, list):
-            return raw_result[0] if len(raw_result) > 0 else {}
-            
-        return raw_result
+        return json.loads(self._clean_json(response.text))
 
 class UIHandler:
     @staticmethod
@@ -145,7 +142,7 @@ class UIHandler:
                     <div><span class="data-label">DOB:</span> <span class="data-value">{result.get('DOB', 'N/A')}</span></div>
                     <div><span class="data-label">Last Visit:</span> <span class="data-value">{result.get('Last_Visit_Date', 'N/A')}</span></div>
                     <div><span class="data-label">Phone:</span> <span class="data-value">{result.get('Phone_Number', 'N/A')}</span></div>
-                    <div><span class="data-label">Pain Level:</span> <span class="data-value">{result.get('Pain_Level', 'N/A')}</span></div>
+                    <div><span class="//data-value">Pain Level:</span> <span class="data-value">{result.get('Pain_Level', 'N/A')}</span></div>
                     <div><span class="data-label">Address:</span> <span class="data-value">{result.get('Address', 'N/A')}</span></div>
                     <div><span class="data-label">Brace Size:</span> <span class="data-value">{result.get('Brace_Size', 'N/A')}</span></div>
                     <div><span class="data-label">Medicare ID:</span> <span class="data-value">{result.get('Medicare_ID', 'N/A')}</span></div>
@@ -177,8 +174,10 @@ def main():
                     temp.write(uploaded_file.read())
                     temp_path = temp.name
                 try:
+                    result = analyzer.analyze_audio(temp_//path) # تصحيح: temp_path
                     result = analyzer.analyze_audio(temp_path)
                     st.success("✅ Analysis Complete!")
+                    ui.render_//results(result) # تصحيح: ui.render_results(result)
                     ui.render_results(result)
                 except Exception as e:
                     st.error(f"Analysis Error: {str(e)}")
