@@ -36,7 +36,6 @@ class QAAnalyzer:
             time.sleep(2)
             audio_file = genai.get_file(audio_file.name)
         
-        # البرومبت المتوازن: يدعم الإقناع المهني ويرفض الإلحاح المزعج
         prompt = """
         Act as a Professional Medical Call Quality Assurance Specialist. Your goal is to provide a fair evaluation that balances "Medical Compliance" with "Professional Sales/Objection Handling".
 
@@ -141,11 +140,43 @@ class UIHandler:
         """, unsafe_allow_html=True)
 
     @staticmethod
+    def generate_report_text(res):
+        """تحويل النتيجة إلى نص منسق سهل النسخ"""
+        report = f"""
+--- MEDICAL CALL QA REPORT ---
+Date: {time.strftime('%Y-%m-%d %H:%M')}
+Agent: {res.get('Agent_Name', 'N/A')}
+Score: {res.get('Score', 'N/A')}/100
+Status: {res.get('Call_Status', 'N/A')}
+
+[Patient Information]
+- Name: {res.get('Patient_Name', 'N/A')}
+- DOB: {res.get('DOB', 'N/A')}
+- Phone: {res.get('Phone_Number', 'N/A')}
+- Address: {res.get('Address', 'N/A')}
+- Medicare ID: {res.get('Medicare_ID', 'N/A')}
+
+[Medical Details]
+- Doctor: {res.get('Doctor_Name', 'N/A')}
+- Last Visit: {res.get('Last_Visit_Date', 'N/A')}
+- Pain Level: {res.get('Pain_Level', 'N/A')}
+- Height/Weight: {res.get('Height', 'N/A')} / {res.get('Weight', 'N/A')}
+- Brace Size: {res.get('Brace_Size', 'N/A')}
+
+[QA Feedback]
+🌟 Strengths: {res.get('Strengths', 'N/A')}
+⚠️ Weaknesses: {res.get('Weaknesses', 'N/A')}
+------------------------------
+        """
+        return report.strip()
+
+    @staticmethod
     def render_results(result):
         if not result:
             st.error("No data received from AI.")
             return
         
+        # --- الجزء الأول: الكروت العلوية ---
         col1, col2 = st.columns([1, 2])
         with col1:
             status_color = "green" if result.get("Call_Status") == "Pass" else "red"
@@ -169,6 +200,7 @@ class UIHandler:
                 </div>
             """, unsafe_allow_html=True)
             
+        # --- الجزء الثاني: البيانات الطبية ---
         st.markdown(f"""
             <div class="custom-card">
                 <div class="card-title">🏥 Extracted Medical Data</div>
@@ -187,12 +219,19 @@ class UIHandler:
             </div>
         """, unsafe_allow_html=True)
         
+        # --- الجزء الثالث: التغذية الراجعة ---
         st.markdown('<div class="card-title">💡 QA Feedback & Compliance</div>', unsafe_allow_html=True)
         tab1, tab2 = st.tabs(["🌟 Strengths", "⚠️ Weaknesses & Observations"])
         with tab1:
             st.success(result.get("Strengths", "None listed."))
         with tab2:
             st.error(result.get("Weaknesses", "None listed."))
+
+        # --- الجزء الرابع: خانة نسخ النتيجة (الطلب الجديد) ---
+        st.markdown('<div class="card-title" style="margin-top: 2rem;">📋 Copy Analysis Report</div>', unsafe_allow_html=True)
+        report_text = UIHandler.generate_report_text(result)
+        st.info("Click the copy icon in the top right of the box below to copy the full report.")
+        st.code(report_text, language="text")
 
 # ==========================================
 # 4. الدالة الرئيسية (Main App)
