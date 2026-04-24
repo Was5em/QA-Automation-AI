@@ -7,7 +7,7 @@ import time
 
 class QAConfig:
     API_KEY = st.secrets.get("GOOGLE_API_KEY", "AIzaSyDjOP3Ps9lsLAeEp5bgexGMAn7AJqn04Ek")
-    MODEL_NAME = 'models/gemini-1.5-flash'
+    MODEL_NAME = 'gemini-1.5-flash'
     PAGE_TITLE = "Medical Call QA Dashboard"
     PAGE_ICON = "🩺"
 
