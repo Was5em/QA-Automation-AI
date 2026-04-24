@@ -122,4 +122,80 @@ class UIHandler:
             st.markdown(f"""
                 <div class="custom-card">
                     <div class="card-title">📊 Overall Score</div>
-                    <div style="text-align:cente
+                    <div style="text-align:center;">
+                        <h2 style="font-size: 3rem; color: #1e3a8a; margin: 0;">{result.get('Score', 'N/A')}/100</h2>
+                        <p style="color: {status_color}; font-weight: bold; font-size: 1.2rem;">Status: {result.get('Call_Status', 'N/A')}</p>
+                    </div>
+                </div>
+            """, unsafe_allow_html=True)
+        with col2:
+            st.markdown(f"""
+                <div class="custom-card">
+                    <div class="card-title">👤 Agent Details</div>
+                    <div style="font-size: 1.1rem;">
+                        <span class="data-label">Agent Name:</span> <span class="data-value">{result.get('Agent_Name', 'N/A')}</span><br>
+                        <span class="data-label">Analysis Date:</span> <span class="data-value">{time.strftime('%Y-%m-%d %H:%M')}</span>
+                    </div>
+                </div>
+            """, unsafe_allow_html=True)
+
+        st.markdown(f"""
+            <div class="custom-card">
+                <div class="card-title">🏥 Extracted Medical Data</div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                    <div><span class="data-label">Patient Name:</span> <span class="data-value">{result.get('Patient_Name', 'N/A')}</span></div>
+                    <div><span class="data-label">Doctor Name:</span> <span class="data-value">{result.get('Doctor_Name', 'N/A')}</span></div>
+                    <div><span class="data-label">DOB:</span> <span class="data-value">{result.get('DOB', 'N/A')}</span></div>
+                    <div><span class="data-label">Last Visit:</span> <span class="data-value">{result.get('Last_Visit_Date', 'N/A')}</span></div>
+                    <div><span class="data-label">Phone:</span> <span class="data-value">{result.get('Phone_Number', 'N/A')}</span></div>
+                    <div><span class="data-label">Pain Level:</span> <span class="data-value">{result.get('Pain_Level', 'N/A')}</span></div>
+                    <div><span class="data-label">Address:</span> <span class="data-value">{result.get('Address', 'N/A')}</span></div>
+                    <div><span class="data-label">Brace Size:</span> <span class="data-value">{result.get('Brace_Size', 'N/A')}</span></div>
+                    <div><span class="//data-value">Medicare ID:</span> <span class="data-value">{result.get('Medicare_ID', 'N/A')}</span></div>
+                    <div><span class="data-label">Height/Weight:</span> <span class="data-value">{result.get('Height', 'N/A')} / {result.get('Weight', 'N/A')}</span></div>
+                </div>
+            </div>
+        """, unsafe_allow_html=True)
+
+        st.markdown('<div class="card-title">💡 QA Feedback & Compliance</div>', unsafe_allow_html=True)
+        tab1, tab2 = st.tabs(["🌟 Strengths", "⚠️ Weaknesses & Observations"])
+        with tab1:
+            st.success(result.get("Strengths", "None listed."))
+        with tab2:
+            st.error(result.get("Weaknesses", "None listed."))
+
+def main():
+    st.set_page_config(page_title=QAConfig.PAGE_TITLE, page_icon=QAConfig.PAGE_ICON, layout="wide")
+    ui = UIHandler()
+    ui.apply_styles()
+    ui.render_header()
+    analyzer = QAAnalyzer()
+    st.sidebar.header("📂 Upload Call Record")
+    uploaded_file = st.sidebar.file_uploader("Upload an MP3 or WAV file", type=["mp3", "wav"])
+    if uploaded_file:
+        st.sidebar.audio(uploaded_//file, format='audio/mp3')
+        if st.sidebar.button("🚀 Analyze Call Now"):
+            with st.spinner('🤖 AI Analyst is evaluating...'):
+                with tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(uploaded_file.name)[1]) as temp:
+                    temp.write(uploaded_file.read())
+                    temp_path = temp.name
+                try:
+                    result = analyzer.analyze_audio(temp_path)
+                    st.success("✅ Analysis Complete!")
+                    ui.render_results(result)
+                except Exception as e:
+                    st.error(f"Analysis Error: {str(e)}")
+                finally:
+                    if os.path.exists(temp_path):
+                        os.remove(temp_path)
+    else:
+        st.info("👈 Please upload an audio file from the sidebar to begin.")
+        c1, c2, c3 = st.columns([1, 1, 1])
+        with c2:
+            try:
+                st.image("logo.png", width=250)
+            except:
+                st.markdown("<h3 style='text-align:center; color:grey;'>Logo Image Missing</h3>", unsafe_allow_html=True)
+
+if __name__ == "__main__":
+    main()
