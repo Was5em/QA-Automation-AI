@@ -4,12 +4,14 @@ import json
 import os
 import tempfile
 import time
+import io
 from fpdf import FPDF # مكتبة توليد ملفات PDF
 
 # ==========================================
 # 1. الإعدادات العامة (Configuration)
 # ==========================================
 class QAConfig:
+    # يفضل وضع المفتاح في st.secrets للامان، هنا وضعناه كما هو في كودك
     API_KEY = st.secrets.get("GOOGLE_API_KEY", "AIzaSyDjOP3Ps9lsLAeEp5bgexGMAn7AJqn04Ek")
     MODEL_NAME = 'models/gemini-flash-latest'
     PAGE_TITLE = "Medical Call QA Dashboard"
@@ -82,11 +84,17 @@ class QAAnalyzer:
 class PDFManager:
     @staticmethod
     def _sanitize_text(text):
-        """دالة لتنظيف النصوص من الرموز التي لا يدعمها ترميز Latin-1"""
-        if not text:
+        """
+        حل مشكلة latin-1: 
+        هذه الدالة تستبدل الرموز التي لا يدعمها PDF (مثل الشرطة الطويلة وعلامات التنصيص الذكية) 
+        برموز عادية لضمان عدم توقف البرنامج.
+        """
+        if text is None:
             return "N/A"
         
-        # استبدال الرموز الشائعة التي تسبب مشاكل في PDF
+        text = str(text)
+        
+        # خريطة استبدال الرموز الشائعة المسببة للمشاكل
         replacements = {
             '\u2013': '-', # en dash
             '\u2014': '-', # em dash
@@ -100,89 +108,98 @@ class PDFManager:
         for bad_char, good_char in replacements.items():
             text = text.replace(bad_char, good_char)
         
-        # تحويل أي رمز متبقي غير مدعوم إلى علامة استفهام بدلاً من توقف البرنامج
+        # تحويل أي رمز متبقي غير مدعوم إلى علامة استفهام بدلاً من الانهيار
         return text.encode('latin-1', 'replace').decode('latin-1')
 
     @staticmethod
     def create_full_pdf(res):
-        """توليد ملف PDF يحتوي على كافة البيانات بالتفصيل"""
-        pdf = FPDF()
-        pdf.add_page()
-        
-        # --- Header ---
-        pdf.set_font("Arial", 'B', 20)
-        pdf.set_text_color(15, 23, 42) # Dark Blue
-        pdf.cell(0, 15, "Medical Call QA Full Report", ln=True, align='C')
-        pdf.ln(5)
-        
-        # --- Summary Section ---
-        pdf.set_font("Arial", 'B', 12)
-        pdf.set_fill_color(240, 240, 240)
-        pdf.cell(0, 10, " General Overview", ln=True, fill=True)
-        pdf.set_font("Arial", '', 12)
-        pdf.ln(2)
-        pdf.cell(0, 8, f"Agent Name: {PDFManager._sanitize_text(res.get('Agent_Name'))}", ln=True)
-        pdf.cell(0, 8, f"Analysis Date: {time.strftime('%Y-%m-%d %H:%M')}", ln=True)
-        pdf.set_font("Arial", 'B', 12)
-        pdf.cell(0, 8, f"Overall Score: {res.get('Score', 'N/A')}/100", ln=True)
-        pdf.cell(0, 8, f"Call Status: {res.get('Call_Status', 'N/A')}", ln=True)
-        pdf.ln(10)
-        
-        # --- Patient Data Section ---
-        pdf.set_font("Arial", 'B', 12)
-        pdf.set_fill_color(240, 240, 240)
-        pdf.cell(0, 10, " Patient Information", ln=True, fill=True)
-        pdf.set_font("Arial", '', 12)
-        pdf.ln(2)
-        
-        patient_info = [
-            ("Patient Name", res.get('Patient_Name')),
-            ("DOB", res.get('DOB')),
-            ("Phone", res.get('Phone_Number')),
-            ("Address", res.get('Address')),
-            ("Medicare ID", res.get('Medicare_ID')),
-            ("Doctor Name", res.get('Doctor_Name')),
-            ("Last Visit", res.get('Last_Visit_Date')),
-            ("Pain Level", res.get('Pain_Level')),
-            ("Height/Weight", f"{res.get('Height', 'N/A')} / {res.get('Weight', 'N/A')}"),
-            ("Brace Size", res.get('Brace_Size')),
-        ]
-        
-        for label, val in patient_info:
-            pdf.cell(0, 8, f"{label}: {PDFManager._sanitize_text(val)}", ln=True)
-        
-        pdf.ln(10)
-        
-        # --- Detailed Analysis Section ---
-        pdf.set_font("Arial", 'B', 12)
-        pdf.set_fill_color(240, 240, 240)
-        pdf.cell(0, 10, " Senior Auditor's Detailed Analysis", ln=True, fill=True)
-        pdf.set_font("Arial", '', 12)
-        pdf.ln(2)
-        pdf.multi_cell(0, 8, PDFManager._sanitize_text(res.get('Detailed_Analysis')))
-        
-        pdf.ln(10)
-        
-        # --- Feedback Summary ---
-        pdf.set_font("Arial", 'B', 12)
-        pdf.set_fill_color(240, 240, 240)
-        pdf.cell(0, 10, " Quick Feedback Summary", ln=True, fill=True)
-        pdf.ln(2)
-        
-        pdf.set_font("Arial", 'B', 12)
-        pdf.cell(0, 8, "Strengths:", ln=True)
-        pdf.set_font("Arial", '', 12)
-        pdf.multi_cell(0, 8, PDFManager._sanitize_text(res.get('Strengths')))
-        
-        pdf.ln(2)
-        pdf.set_font("Arial", 'B', 12)
-        pdf.cell(0, 8, "Weaknesses:", ln=True)
-        pdf.set_font("Arial", '', 12)
-        pdf.multi_cell(0, 8, PDFManager._sanitize_text(res.get('Weaknesses')))
-        
-        # التعديل هنا: نستخدم output(dest='S') ونرجع النتيجة كـ bytes مباشرة
-        # بدلاً من عمل encode('latin-1') يدوياً على مخرجات الدالة
-        return pdf.output(dest='S')
+        """توليد ملف PDF وإرجاعه بصيغة bytes صحيحة لضمان عدم نزوله فارغاً"""
+        try:
+            pdf = FPDF()
+            pdf.add_page()
+            
+            # --- Header ---
+            pdf.set_font("Arial", 'B', 20)
+            pdf.set_text_color(15, 23, 42) # Dark Blue
+            pdf.cell(0, 15, "Medical Call QA Full Report", ln=True, align='C')
+            pdf.ln(5)
+            
+            # --- Summary Section ---
+            pdf.set_font("Arial", 'B', 12)
+            pdf.set_fill_color(240, 240, 240)
+            pdf.cell(0, 10, " General Overview", ln=True, fill=True)
+            pdf.set_font("Arial", '', 12)
+            pdf.ln(2)
+            pdf.cell(0, 8, f"Agent Name: {PDFManager._sanitize_text(res.get('Agent_Name'))}", ln=True)
+            pdf.cell(0, 8, f"Analysis Date: {time.strftime('%Y-%m-%d %H:%M')}", ln=True)
+            pdf.set_font("Arial", 'B', 12)
+            pdf.cell(0, 8, f"Overall Score: {res.get('Score', 'N/A')}/100", ln=True)
+            pdf.cell(0, 8, f"Call Status: {res.get('Call_Status', 'N/A')}", ln=True)
+            pdf.ln(10)
+            
+            # --- Patient Data Section ---
+            pdf.set_font("Arial", 'B', 12)
+            pdf.set_fill_color(240, 240, 240)
+            pdf.cell(0, 10, " Patient Information", ln=True, fill=True)
+            pdf.set_font("Arial", '', 12)
+            pdf.ln(2)
+            
+            patient_info = [
+                ("Patient Name", res.get('Patient_Name')),
+                ("DOB", res.get('DOB')),
+                ("Phone", res.get('Phone_Number')),
+                ("Address", res.get('Address')),
+                ("Medicare ID", res.get('Medicare_ID')),
+                ("Doctor Name", res.get('Doctor_Name')),
+                ("Last Visit", res.get('Last_Visit_Date')),
+                ("Pain Level", res.get('Pain_Level')),
+                ("Height/Weight", f"{res.get('Height', 'N/A')} / {res.get('Weight', 'N/A')}"),
+                ("Brace Size", res.get('Brace_Size')),
+            ]
+            
+            for label, val in patient_info:
+                pdf.cell(0, 8, f"{label}: {PDFManager._sanitize_text(val)}", ln=True)
+            
+            pdf.ln(10)
+            
+            # --- Detailed Analysis Section ---
+            pdf.set_font("Arial", 'B', 12)
+            pdf.set_fill_color(240, 240, 240)
+            pdf.cell(0, 10, " Senior Auditor's Detailed Analysis", ln=True, fill=True)
+            pdf.set_font("Arial", '', 12)
+            pdf.ln(2)
+            pdf.multi_cell(0, 8, PDFManager._sanitize_text(res.get('Detailed_Analysis')))
+            
+            pdf.ln(10)
+            
+            # --- Feedback Summary ---
+            pdf.set_font("Arial", 'B', 12)
+            pdf.set_fill_color(240, 240, 240)
+            pdf.cell(0, 10, " Quick Feedback Summary", ln=True, fill=True)
+            pdf.ln(2)
+            
+            pdf.set_font("Arial", 'B', 12)
+            pdf.cell(0, 8, "Strengths:", ln=True)
+            pdf.set_font("Arial", '', 12)
+            pdf.multi_cell(0, 8, PDFManager._sanitize_text(res.get('Strengths')))
+            
+            pdf.ln(2)
+            pdf.set_font("Arial", 'B', 12)
+            pdf.cell(0, 8, "Weaknesses:", ln=True)
+            pdf.set_font("Arial", '', 12)
+            pdf.multi_cell(0, 8, PDFManager._sanitize_text(res.get('Weaknesses')))
+            
+            # --- الحل النهائي لمشكلة الملف الفارغ ---
+            # استخراج البيانات كـ String (S) ثم تحويلها فوراً إلى bytes
+            pdf_output = pdf.output(dest='S')
+            
+            if isinstance(pdf_output, str):
+                return pdf_output.encode('latin-1')
+            return pdf_output
+
+        except Exception as e:
+            st.error(f"PDF Error: {str(e)}")
+            return b"" # إرجاع bytes فارغة في حالة الخطأ
 
 # ==========================================
 # 4. واجهة المستخدم (UI Handler)
@@ -299,18 +316,21 @@ class UIHandler:
             st.error(result.get("Weaknesses", "None listed."))
 
         # ==========================================
-        # زر تحميل PDF الشامل (الميزة المطلوبة)
+        # زر تحميل PDF الشامل
         # ==========================================
         st.markdown('<div class="card-title" style="margin-top: 2rem;">📥 Export Full Report</div>', unsafe_allow_html=True)
         
         pdf_data = PDFManager.create_full_pdf(result)
-        st.download_button(
-            label="📄 Download Complete Analysis PDF",
-            data=pdf_data,
-            file_name=f"Medical_QA_{result.get('Agent_Name', 'Agent')}_{time.strftime('%Y%m%d')}.pdf",
-            mime="application/pdf",
-            use_container_width=True
-        )
+        if pdf_data:
+            st.download_button(
+                label="📄 Download Complete Analysis PDF",
+                data=pdf_data,
+                file_name=f"Medical_QA_{result.get('Agent_Name', 'Agent')}_{time.strftime('%Y%m%d')}.pdf",
+                mime="application/pdf",
+                use_container_width=True
+            )
+        else:
+            st.error("Could not generate PDF data.")
 
 # ==========================================
 # 5. الدالة الرئيسية (Main App)
