@@ -4,6 +4,7 @@ import json
 import os
 import tempfile
 import time
+from fpdf import FPDF # مكتبة توليد ملفات PDF
 
 # ==========================================
 # 1. الإعدادات العامة (Configuration)
@@ -36,22 +37,16 @@ class QAAnalyzer:
             time.sleep(2)
             audio_file = genai.get_file(audio_file.name)
         
-        # برومبت "التحليل البشري": يركز على السرد، السياق، والتقييم النقدي
         prompt = """
-        Act as a Senior Medical QA Manager with 20 years of experience in auditing medical calls. 
+        Act as a Senior Medical QA Manager with 20 years of experience. 
         Your goal is to provide a human-like, professional, and nuanced evaluation. 
-        Stop using robotic bullet points for the main analysis. Instead, write a professional narrative.
+        Avoid robotic lists for the main analysis; write a professional narrative.
 
-        ### GUIDELINES FOR HUMAN-LIKE ANALYSIS:
-        1. **Contextual Analysis:** Don't just say "the agent did X". Say "While the agent attempted to do X, the effect on the patient was Y, which suggests Z."
-        2. **Emotional Intelligence:** Analyze the patient's tone (confused, suspicious, angry) and evaluate if the agent's response was emotionally appropriate.
-        3. **Persuasion vs. Pressure:** Evaluate the 'Objection Handling'. If the agent is helpful, call it 'Effective Guidance'. If the agent is too pushy despite a clear 'No', describe it as 'Aggressive Sales Pressure' and explain how it damages trust.
-        4. **Active Listening:** Look for signs of poor listening (e.g., repeating a question the patient already answered) and describe it as a lack of engagement.
-
-        ### SCORING LOGIC:
-        - Be fair but critical. A 100/100 is for a perfect call.
-        - Deduct points for compliance risks, poor listening, or ignoring the patient's emotional state.
-        - Reward genuine empathy and professional persistence.
+        ### GUIDELINES:
+        1. **Contextual Analysis:** Explain the 'Why'. Connect agent behavior to patient reaction.
+        2. **Emotional Intelligence:** Analyze the patient's tone and the agent's response.
+        3. **Persuasion vs. Pressure:** Distinguish between professional objection handling and unethical pressure.
+        4. **Active Listening:** Flag if the agent repeats questions already answered.
 
         OUTPUT FORMAT (Strict JSON):
         {
@@ -59,9 +54,9 @@ class QAAnalyzer:
           "Phone_Number": "", "Medicare_ID": "", "Brace_Size": "", "Height": "",
           "Weight": "", "Pain_Level": "", "Doctor_Name": "", "Last_Visit_Date": "",
           "Previous_Treatments": "", "Score": "Numerical value", 
-          "Detailed_Analysis": "Write a 2-3 paragraph professional narrative. Discuss the call's flow, the agent's emotional intelligence, and the overall quality of the interaction. Make it sound like a senior manager writing a feedback report for a trainee. Use phrases like 'I noticed that...', 'It appears that...', 'The agent successfully handled... but failed to...'",
-          "Strengths": "A brief summary of the top 2-3 strengths", 
-          "Weaknesses": "A brief summary of the top 2-3 critical gaps", 
+          "Detailed_Analysis": "A professional 2-3 paragraph narrative evaluation.",
+          "Strengths": "Key positives", 
+          "Weaknesses": "Key negatives", 
           "Call_Status": "Pass (if Score >= 75) / Fail (if Score < 75)"
         }
         """
@@ -82,7 +77,91 @@ class QAAnalyzer:
         return data
 
 # ==========================================
-# 3. واجهة المستخدم (UI Handler)
+# 3. مدير التقارير و PDF (PDF Report Manager)
+# ==========================================
+class PDFManager:
+    @staticmethod
+    def create_full_pdf(res):
+        """توليد ملف PDF يحتوي على كافة البيانات بالتفصيل"""
+        pdf = FPDF()
+        pdf.add_page()
+        
+        # --- Header ---
+        pdf.set_font("Arial", 'B', 20)
+        pdf.set_text_color(15, 23, 42) # Dark Blue
+        pdf.cell(0, 15, "Medical Call QA Full Report", ln=True, align='C')
+        pdf.ln(5)
+        
+        # --- Summary Section ---
+        pdf.set_font("Arial", 'B', 12)
+        pdf.set_fill_color(240, 240, 240)
+        pdf.cell(0, 10, " General Overview", ln=True, fill=True)
+        pdf.set_font("Arial", '', 12)
+        pdf.ln(2)
+        pdf.cell(0, 8, f"Agent Name: {res.get('Agent_Name', 'N/A')}", ln=True)
+        pdf.cell(0, 8, f"Analysis Date: {time.strftime('%Y-%m-%d %H:%M')}", ln=True)
+        pdf.set_font("Arial", 'B', 12)
+        pdf.cell(0, 8, f"Overall Score: {res.get('Score', 'N/A')}/100", ln=True)
+        pdf.cell(0, 8, f"Call Status: {res.get('Call_Status', 'N/A')}", ln=True)
+        pdf.ln(10)
+        
+        # --- Patient Data Section ---
+        pdf.set_font("Arial", 'B', 12)
+        pdf.set_fill_color(240, 240, 240)
+        pdf.cell(0, 10, " Patient Information", ln=True, fill=True)
+        pdf.set_font("Arial", '', 12)
+        pdf.ln(2)
+        
+        patient_info = [
+            ("Patient Name", res.get('Patient_Name')),
+            ("DOB", res.get('DOB')),
+            ("Phone", res.get('Phone_Number')),
+            ("Address", res.get('Address')),
+            ("Medicare ID", res.get('Medicare_ID')),
+            ("Doctor Name", res.get('Doctor_Name')),
+            ("Last Visit", res.get('Last_Visit_Date')),
+            ("Pain Level", res.get('Pain_Level')),
+            ("Height/Weight", f"{res.get('Height', 'N/A')} / {res.get('Weight', 'N/A')}"),
+            ("Brace Size", res.get('Brace_Size')),
+        ]
+        
+        for label, val in patient_info:
+            pdf.cell(0, 8, f"{label}: {val if val else 'N/A'}", ln=True)
+        
+        pdf.ln(10)
+        
+        # --- Detailed Analysis Section ---
+        pdf.set_font("Arial", 'B', 12)
+        pdf.set_fill_color(240, 240, 240)
+        pdf.cell(0, 10, " Senior Auditor's Detailed Analysis", ln=True, fill=True)
+        pdf.set_font("Arial", '', 12)
+        pdf.ln(2)
+        # multi_cell تسمح بكتابة فقرات طويلة وتنزل سطراً تلقائياً
+        pdf.multi_cell(0, 8, res.get('Detailed_Analysis', 'N/A'))
+        
+        pdf.ln(10)
+        
+        # --- Feedback Summary ---
+        pdf.set_font("Arial", 'B', 12)
+        pdf.set_fill_color(240, 240, 240)
+        pdf.cell(0, 10, " Quick Feedback Summary", ln=True, fill=True)
+        pdf.ln(2)
+        
+        pdf.set_font("Arial", 'B', 12)
+        pdf.cell(0, 8, "Strengths:", ln=True)
+        pdf.set_font("Arial", '', 12)
+        pdf.multi_cell(0, 8, res.get('Strengths', 'N/A'))
+        
+        pdf.ln(2)
+        pdf.set_font("Arial", 'B', 12)
+        pdf.cell(0, 8, "Weaknesses:", ln=True)
+        pdf.set_font("Arial", '', 12)
+        pdf.multi_cell(0, 8, res.get('Weaknesses', 'N/A'))
+        
+        return pdf.output(dest='S').encode('latin-1')
+
+# ==========================================
+# 4. واجهة المستخدم (UI Handler)
 # ==========================================
 class UIHandler:
     @staticmethod
@@ -132,25 +211,6 @@ class UIHandler:
         """, unsafe_allow_html=True)
 
     @staticmethod
-    def generate_report_text(res):
-        report = f"""
---- MEDICAL CALL QA REPORT ---
-Date: {time.strftime('%Y-%m-%d %H:%M')}
-Agent: {res.get('Agent_Name', 'N/A')}
-Score: {res.get('Score', 'N/A')}/100
-Status: {res.get('Call_Status', 'N/A')}
-
-[Senior Manager's Analysis]
-{res.get('Detailed_Analysis', 'N/A')}
-
-[Quick Summary]
-🌟 Strengths: {res.get('Strengths', 'N/A')}
-⚠️ Weaknesses: {res.get('Weaknesses', 'N/A')}
-------------------------------
-        """
-        return report.strip()
-
-    @staticmethod
     def render_results(result):
         if not result:
             st.error("No data received from AI.")
@@ -179,7 +239,7 @@ Status: {res.get('Call_Status', 'N/A')}
                 </div>
             """, unsafe_allow_html=True)
             
-        # --- الجزء الجديد: التحليل السردي البشري ---
+        # التحليل السردي
         st.markdown('<div class="card-title">📝 Senior Auditor\'s Detailed Analysis</div>', unsafe_allow_html=True)
         st.markdown(f"""
             <div class="narrative-box">
@@ -187,7 +247,7 @@ Status: {res.get('Call_Status', 'N/A')}
             </div>
         """, unsafe_allow_html=True)
 
-        # --- البيانات الطبية ---
+        # البيانات الطبية
         st.markdown(f"""
             <div class="custom-card">
                 <div class="card-title">🏥 Extracted Medical Data</div>
@@ -206,7 +266,7 @@ Status: {res.get('Call_Status', 'N/A')}
             </div>
         """, unsafe_allow_html=True)
         
-        # --- التغذية الراجعة السريعة ---
+        # ملخص سريع
         st.markdown('<div class="card-title">💡 Quick Summary</div>', unsafe_allow_html=True)
         tab1, tab2 = st.tabs(["🌟 Strengths", "⚠️ Weaknesses"])
         with tab1:
@@ -214,13 +274,22 @@ Status: {res.get('Call_Status', 'N/A')}
         with tab2:
             st.error(result.get("Weaknesses", "None listed."))
 
-        # --- خانة نسخ النتيجة ---
-        st.markdown('<div class="card-title" style="margin-top: 2rem;">📋 Copy Full Report</div>', unsafe_allow_html=True)
-        report_text = UIHandler.generate_report_text(result)
-        st.code(report_text, language="text")
+        # ==========================================
+        # زر تحميل PDF الشامل (الميزة المطلوبة)
+        # ==========================================
+        st.markdown('<div class="card-title" style="margin-top: 2rem;">📥 Export Full Report</div>', unsafe_allow_html=True)
+        
+        pdf_data = PDFManager.create_full_pdf(result)
+        st.download_button(
+            label="📄 Download Complete Analysis PDF",
+            data=pdf_data,
+            file_name=f"Medical_QA_{result.get('Agent_Name', 'Agent')}_{time.strftime('%Y%m%d')}.pdf",
+            mime="application/pdf",
+            use_container_width=True
+        )
 
 # ==========================================
-# 4. الدالة الرئيسية (Main App)
+# 5. الدالة الرئيسية (Main App)
 # ==========================================
 def main():
     st.set_page_config(page_title=QAConfig.PAGE_TITLE, page_icon=QAConfig.PAGE_ICON, layout="wide")
@@ -235,7 +304,7 @@ def main():
     if uploaded_file:
         st.sidebar.audio(uploaded_file, format='audio/mp3')
         if st.sidebar.button("🚀 Analyze Call Now"):
-            with st.spinner('🤖 Senior Auditor is drafting the evaluation...'):
+            with st.spinner('🤖 Senior Auditor is analyzing and drafting the report...'):
                 with tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(uploaded_file.name)[1]) as temp:
                     temp.write(uploaded_file.read())
                     temp_path = temp.name
