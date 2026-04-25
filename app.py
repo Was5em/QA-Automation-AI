@@ -81,6 +81,29 @@ class QAAnalyzer:
 # ==========================================
 class PDFManager:
     @staticmethod
+    def _sanitize_text(text):
+        """دالة لتنظيف النصوص من الرموز التي لا يدعمها ترميز Latin-1"""
+        if not text:
+            return "N/A"
+        
+        # استبدال الرموز الشائعة التي تسبب مشاكل في PDF
+        replacements = {
+            '\u2013': '-', # en dash
+            '\u2014': '-', # em dash
+            '\u2018': "'", # left single quote
+            '\u2019': "'", # right single quote
+            '\u201c': '"', # left double quote
+            '\u201d': '"', # right double quote
+            '\u2026': '...', # ellipsis
+            '\u00a0': ' ',   # non-breaking space
+        }
+        for bad_char, good_char in replacements.items():
+            text = text.replace(bad_char, good_char)
+        
+        # تحويل أي رمز متبقي غير مدعوم إلى علامة استفهام بدلاً من توقف البرنامج
+        return text.encode('latin-1', 'replace').decode('latin-1')
+
+    @staticmethod
     def create_full_pdf(res):
         """توليد ملف PDF يحتوي على كافة البيانات بالتفصيل"""
         pdf = FPDF()
@@ -98,7 +121,7 @@ class PDFManager:
         pdf.cell(0, 10, " General Overview", ln=True, fill=True)
         pdf.set_font("Arial", '', 12)
         pdf.ln(2)
-        pdf.cell(0, 8, f"Agent Name: {res.get('Agent_Name', 'N/A')}", ln=True)
+        pdf.cell(0, 8, f"Agent Name: {PDFManager._sanitize_text(res.get('Agent_Name'))}", ln=True)
         pdf.cell(0, 8, f"Analysis Date: {time.strftime('%Y-%m-%d %H:%M')}", ln=True)
         pdf.set_font("Arial", 'B', 12)
         pdf.cell(0, 8, f"Overall Score: {res.get('Score', 'N/A')}/100", ln=True)
@@ -126,7 +149,7 @@ class PDFManager:
         ]
         
         for label, val in patient_info:
-            pdf.cell(0, 8, f"{label}: {val if val else 'N/A'}", ln=True)
+            pdf.cell(0, 8, f"{label}: {PDFManager._sanitize_text(val)}", ln=True)
         
         pdf.ln(10)
         
@@ -136,8 +159,7 @@ class PDFManager:
         pdf.cell(0, 10, " Senior Auditor's Detailed Analysis", ln=True, fill=True)
         pdf.set_font("Arial", '', 12)
         pdf.ln(2)
-        # multi_cell تسمح بكتابة فقرات طويلة وتنزل سطراً تلقائياً
-        pdf.multi_cell(0, 8, res.get('Detailed_Analysis', 'N/A'))
+        pdf.multi_cell(0, 8, PDFManager._sanitize_text(res.get('Detailed_Analysis')))
         
         pdf.ln(10)
         
@@ -150,15 +172,17 @@ class PDFManager:
         pdf.set_font("Arial", 'B', 12)
         pdf.cell(0, 8, "Strengths:", ln=True)
         pdf.set_font("Arial", '', 12)
-        pdf.multi_cell(0, 8, res.get('Strengths', 'N/A'))
+        pdf.multi_cell(0, 8, PDFManager._sanitize_text(res.get('Strengths')))
         
         pdf.ln(2)
         pdf.set_font("Arial", 'B', 12)
         pdf.cell(0, 8, "Weaknesses:", ln=True)
         pdf.set_font("Arial", '', 12)
-        pdf.multi_cell(0, 8, res.get('Weaknesses', 'N/A'))
+        pdf.multi_cell(0, 8, PDFManager._sanitize_text(res.get('Weaknesses')))
         
-        return pdf.output(dest='S').encode('latin-1')
+        # التعديل هنا: نستخدم output(dest='S') ونرجع النتيجة كـ bytes مباشرة
+        # بدلاً من عمل encode('latin-1') يدوياً على مخرجات الدالة
+        return pdf.output(dest='S')
 
 # ==========================================
 # 4. واجهة المستخدم (UI Handler)
