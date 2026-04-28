@@ -126,7 +126,7 @@ class PDFManager:
             pdf.cell(0, 15, "Medical Call QA Full Report", ln=True, align='C')
             pdf.ln(5)
             
-            # 1. General Overview (Matches Score & Agent Cards)
+            # 1. General Overview
             pdf.set_font("Arial", 'B', 12)
             pdf.set_fill_color(230, 235, 245)
             pdf.cell(0, 10, " General Overview", ln=True, fill=True)
@@ -137,8 +137,35 @@ class PDFManager:
             pdf.cell(0, 8, f"Overall Score: {res.get('Score', 'N/A')}/100", ln=True)
             pdf.cell(0, 8, f"Call Status: {res.get('Call_Status', 'N/A')}", ln=True)
             pdf.ln(5)
+
+            # 2. NEW SECTION: Patient & Equipment Details
+            pdf.set_font("Arial", 'B', 12)
+            pdf.set_fill_color(230, 235, 245)
+            pdf.cell(0, 10, " Patient & Equipment Details", ln=True, fill=True)
+            pdf.set_font("Arial", '', 11)
             
-            # 2. Clinical Intelligence (Matches the Grid in UI)
+            # Patient Grid
+            pdf.cell(0, 8, f"Patient Name: {PDFManager._sanitize(res.get('Patient_Name'))}", ln=True)
+            pdf.cell(0, 8, f"DOB: {PDFManager._sanitize(res.get('DOB'))}", ln=True)
+            pdf.cell(0, 8, f"Phone: {PDFManager._sanitize(res.get('Phone_Number'))}", ln=True)
+            pdf.cell(0, 8, f"Medicare ID: {PDFManager._sanitize(res.get('Medicare_ID'))}", ln=True)
+            pdf.multi_cell(0, 8, f"Address: {PDFManager._sanitize(res.get('Address'))}")
+            
+            # Dashed Line
+            pdf.ln(2)
+            pdf.set_draw_color(150, 150, 150)
+            pdf.line(10, pdf.get_y(), 200, pdf.get_y()) 
+            pdf.ln(4)
+            
+            # Equipment Row
+            eq = res.get('Equipment_Details', {})
+            eq_text = (f"Height: {eq.get('Height', 'N/A')} | Weight: {eq.get('Weight', 'N/A')} | "
+                       f"Waist: {eq.get('Waist_Size', 'N/A')} | Brace Size: {eq.get('Brace_Size', 'N/A')}")
+            pdf.set_font("Arial", 'B', 11)
+            pdf.multi_cell(0, 8, PDFManager._sanitize(eq_text), align='C')
+            pdf.ln(5)
+            
+            # 3. Clinical Intelligence
             pdf.set_font("Arial", 'B', 12)
             pdf.set_fill_color(230, 235, 245)
             pdf.cell(0, 10, " Clinical Intelligence", ln=True, fill=True)
@@ -153,7 +180,7 @@ class PDFManager:
             pdf.multi_cell(0, 8, PDFManager._sanitize(clinical_info))
             pdf.ln(5)
 
-            # 3. detailed medical details (Arthritis & Surgery)
+            # 4. Arthritis & Surgery
             pdf.set_font("Arial", 'B', 12)
             pdf.cell(0, 8, "Specific Medical Nuances:", ln=True)
             pdf.set_font("Arial", '', 11)
@@ -166,7 +193,7 @@ class PDFManager:
                 pdf.multi_cell(0, 8, PDFManager._sanitize(f"- Surgery: {surg.get('Procedure')} | Date: {surg.get('Date')} | Side: {surg.get('Side')}"))
             pdf.ln(5)
 
-            # 4. Provider Details
+            # 5. Provider Details
             pdf.set_font("Arial", 'B', 12)
             pdf.set_fill_color(230, 235, 245)
             pdf.cell(0, 10, " Provider Details", ln=True, fill=True)
@@ -179,7 +206,7 @@ class PDFManager:
                 pdf.multi_cell(0, 8, PDFManager._sanitize(doc_text))
                 pdf.ln(2)
 
-            # 5. Objection Handling Map (Matches the lapped cards in UI)
+            # 6. Objection Handling
             pdf.ln(5)
             pdf.set_font("Arial", 'B', 12)
             pdf.set_fill_color(230, 235, 245)
@@ -192,10 +219,10 @@ class PDFManager:
                             f"Result: {obj.get('Resolution')}")
                 pdf.multi_cell(0, 8, PDFManager._sanitize(obj_text))
                 pdf.ln(4)
-                pdf.line(10, pdf.get_y(), 200, pdf.get_y()) # Line between objections
+                pdf.line(10, pdf.get_y(), 200, pdf.get_y())
                 pdf.ln(4)
 
-            # 6. Senior Auditor's Narrative
+            # 7. Auditor Narrative
             pdf.ln(5)
             pdf.set_font("Arial", 'B', 12)
             pdf.set_fill_color(230, 235, 245)
@@ -203,7 +230,7 @@ class PDFManager:
             pdf.set_font("Arial", '', 12)
             pdf.multi_cell(0, 8, PDFManager._sanitize(res.get('Detailed_Analysis', {}).get('Narrative', 'N/A')))
             
-            # 7. Strengths & Weaknesses
+            # 8. Strengths & Weaknesses
             pdf.ln(10)
             pdf.set_font("Arial", 'B', 12)
             pdf.cell(0, 8, "Key Strengths:", ln=True)
@@ -248,6 +275,13 @@ class UIHandler:
             }
             .card-title { color: #1e3a8a; font-size: 1.3rem; font-weight: bold; margin-bottom: 15px; }
             .data-label { font-weight: 600; color: #64748b; width: 160px; display: inline-block; }
+            .equipment-row {
+                display: flex; justify-content: space-around; 
+                text-align: center; background: #eff6ff; 
+                padding: 15px; border-radius: 10px; border: 1px dashed #2563eb;
+            }
+            .eq-item { display: flex; flex-direction: column; }
+            .eq-val { font-weight: bold; color: #1e3a8a; font-size: 1.1rem; }
             </style>
             """, unsafe_allow_html=True)
 
@@ -287,10 +321,31 @@ class UIHandler:
                 <div style="text-align:center;"><h2 style="font-size: 3rem; color: #1e3a8a; margin: 0;">{res.get('Score', 'N/A')}/100</h2>
                 <p style="color: {color}; font-weight: bold;">Status: {res.get('Call_Status', 'N/A')}</p></div></div>""", unsafe_allow_html=True)
         with col2:
-            st.markdown(f"""<div class="custom-card"><div class="card-title">👤 Verified Identity</div>
+            st.markdown(f"""<div class="custom-card"><div class="card-title">👤 Call Info</div>
                 <div style="font-size: 1.1rem;"><span class="data-label">Agent:</span> {res.get('Agent_Name', 'N/A')}<br>
-                <span class="data-label">Patient:</span> {res.get('Patient_Name', 'N/A')}<br>
                 <span class="data-label">Date:</span> {res.get('Call_Date', 'N/A')}</div></div>""", unsafe_allow_html=True)
+
+        # --- NEW SECTION: Patient & Equipment Details ---
+        st.markdown('<div class="card-title">👤 Patient & Equipment Details</div>', unsafe_allow_html=True)
+        with st.container():
+            st.markdown(f"""
+                <div class="custom-card">
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 20px;">
+                        <div><span class="data-label">Patient Name:</span> {res.get('Patient_Name', 'N/A')}</div>
+                        <div><span class="data-label">DOB:</span> {res.get('DOB', 'N/A')}</div>
+                        <div><span class="data-label">Phone:</span> {res.get('Phone_Number', 'N/A')}</div>
+                        <div><span class="data-label">Medicare ID:</span> {res.get('Medicare_ID', 'N/A')}</div>
+                        <div style="grid-column: span 2;"><span class="data-label">Address:</span> {res.get('Address', 'N/A')}</div>
+                    </div>
+                    <div style="border-top: 1px dashed #ccc; margin: 15px 0;"></div>
+                    <div class="equipment-row">
+                        <div class="eq-item"><span class="data-label" style="width:auto;">Height</span><span class="eq-val">{res.get('Equipment_Details', {}).get('Height', 'N/A')}</span></div>
+                        <div class="eq-item"><span class="data-label" style="width:auto;">Weight</span><span class="eq-val">{res.get('Equipment_Details', {}).get('Weight', 'N/A')}</span></div>
+                        <div class="eq-item"><span class="data-label" style="width:auto;">Waist Size</span><span class="eq-val">{res.get('Equipment_Details', {}).get('Waist_Size', 'N/A')}</span></div>
+                        <div class="eq-item"><span class="data-label" style="width:auto;">Brace Size</span><span class="eq-val">{res.get('Equipment_Details', {}).get('Brace_Size', 'N/A')}</span></div>
+                    </div>
+                </div>
+            """, unsafe_allow_html=True)
 
         st.markdown('<div class="card-title">📝 Senior Auditor\'s Narrative</div>', unsafe_allow_html=True)
         st.markdown(f'<div class="narrative-box">{res.get("Detailed_Analysis", {}).get("Narrative", "N/A")}</div>', unsafe_allow_html=True)
