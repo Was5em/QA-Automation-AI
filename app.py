@@ -20,10 +20,8 @@ class QAAnalyzer:
 
     def _clean_json(self, text: str) -> str:
         text = text.strip()
-        if text.startswith("```json"):
-            text = text[7:]
-        if text.endswith("```"):
-            text = text[:-3]
+        if text.startswith("```json"): text = text[7:]
+        if text.endswith("```"): text = text[:-3]
         return text.strip()
 
     def analyze_audio_final(self, file_path: str) -> Dict[str, Any]:
@@ -38,92 +36,69 @@ class QAAnalyzer:
 
         STRICT JSON OUTPUT SCHEMA:
         {
-          "Agent_Name": "<String: Extract agent's name>",
-          "Call_Date": "<String: Extract date of call>",
-          "Patient_Name": "<String: Extract patient's full name>",
-          "DOB": "<String: Extract Date of Birth>",
-          "Address": "<String: Extract full address>",
-          "Phone_Number": "<String: Extract phone number>",
-          "Medicare_ID": "<String: Extract Medicare ID if mentioned>",
-          
+          "Agent_Name": "<String>",
+          "Call_Date": "<String>",
+          "Patient_Name": "<String>",
+          "DOB": "<String>",
+          "Address": "<String>",
+          "Phone_Number": "<String>",
+          "Medicare_ID": "<String>",
           "Medical_History": {
             "Kidney_Disease": "<YES/NO/NOT_MENTIONED>",
             "Cancer": "<YES/NO/NOT_MENTIONED>",
             "Memory_Loss": "<YES/NO/NOT_MENTIONED>",
             "Cognitive_Impairment": "<YES/NO/NOT_MENTIONED>",
             "Caregiver": "<YES/NO - Provide reason if NO>",
-            "Medications": ["<String: List medication 1 (specify if OTC/Prescription)>"],
+            "Medications": ["<String>"],
             "Arthritis_Details": {
-              "Affected_Joints": ["<String: Joint 1>"],
-              "Pain_Descriptor": "<String: Patient's EXACT words for pain>",
-              "Pain_Triggers": ["<String: Trigger 1>"],
-              "Pain_Pattern": "<String: Time of day or progression>"
+              "Affected_Joints": ["<String>"],
+              "Pain_Descriptor": "<String>",
+              "Pain_Triggers": ["<String>"],
+              "Pain_Pattern": "<String>"
             },
             "Surgical_History": [
               {
-                "Procedure": "<String: Exact procedure name>",
-                "Date": "<String: Exact date or timeframe>",
-                "Side": "<String: Left/Right/Bilateral/NA>",
-                "Status": "<Completed/Pending>",
-                "Patient_Expectation": "<String: Patient's belief about this surgery>"
+                "Procedure": "<String>",
+                "Date": "<String>",
+                "Side": "<String>",
+                "Status": "<String>",
+                "Patient_Expectation": "<String>"
               }
             ]
           },
-          
           "Doctor_Details": [
             {
-              "Name": "<String: Exact spelling or phonetic equivalent>",
-              "Name_Confidence": "<HIGH/MEDIUM/LOW>",
-              "Specialty": "<String: PCP, Orthopedist, etc.>",
-              "Facility": "<String: Clinic or location name>",
-              "Last_Visit": "<String: Exact timeframe mentioned>",
-              "Next_Appointment": "<String: Exact date or timeframe>",
-              "Selection_Reason": "<String: Why did patient choose this doctor?>",
+              "Name": "<String>",
+              "Specialty": "<String>",
+              "Last_Visit": "<String>",
+              "Selection_Reason": "<String>",
               "DME_Awareness": {
-                "Cane": "<YES/NO/Unknown>",
-                "Cane_Referred_By_Provider": "<YES/NO/Not specified>",
-                "Walker": "<YES/NO/Unknown>",
-                "Walker_Referred_By_Provider": "<YES/NO/Not specified>",
-                "Brace": "<YES/NO/Unknown>",
-                "Brace_Referred_By_Provider": "<YES/NO/Not specified>"
+                "Cane": "<YES/NO>", "Walker": "<YES/NO>", "Brace": "<YES/NO>"
               }
             }
           ],
-          
           "Objection_Handling": [
             {
               "Objection_Number": "<Integer>",
               "Category": "<String>",
-              "Patient_Reasoning": "<String: Quote or paraphrase the exact hesitation>",
-              "Agent_Response": "<String: Specific strategy or phrase used by agent>",
-              "Resolution": "<Overcome/Partial/Not Overcome>",
-              "Patient_Final_Position": "<Accepted/Still Hesitant/Refused>"
+              "Patient_Reasoning": "<String>",
+              "Agent_Response": "<String>",
+              "Resolution": "<String>"
             }
           ],
-          
           "Equipment_Details": {
-            "Brace_Size": "<String>",
-            "Waist_Size": "<String>",
-            "Height": "<String>",
-            "Weight": "<String>"
+            "Brace_Size": "<String>", "Waist_Size": "<String>", "Height": "<String>", "Weight": "<String>"
           },
-          
-          "Score": "<Integer: 0-100>",
+          "Score": "<Integer>",
           "Call_Status": "<Pass/Fail>",
-          
           "Detailed_Analysis": {
             "Strengths": ["<String>"],
             "Weaknesses": ["<String>"],
-            "Narrative": "<String: Objective microscopic summary of the interaction>"
+            "Narrative": "<String>"
           }
         }
         """
-        
-        response = self.model.generate_content(
-            [prompt, audio_file],
-            generation_config={"response_mime_type": "application/json"}
-        )
-        
+        response = self.model.generate_content([prompt, audio_file], generation_config={"response_mime_type": "application/json"})
         try:
             data = json.loads(self._clean_json(response.text))
             return data[0] if isinstance(data, list) else data
@@ -135,12 +110,8 @@ class PDFManager:
     def _sanitize(text: Any) -> str:
         if text is None: return "N/A"
         text = str(text)
-        replacements = {
-            '\u2013': '-', '\u2014': '-', '\u2018': "'", '\u2019': "'", 
-            '\u201c': '"', '\u201d': '"', '\u2026': '...', '\u00a0': ' '
-        }
-        for bad, good in replacements.items():
-            text = text.replace(bad, good)
+        replacements = {'\u2013': '-', '\u2014': '-', '\u2018': "'", '\u2019': "'", '\u201c': '"', '\u201d': '"', '\u2026': '...', '\u00a0': ' '}
+        for bad, good in replacements.items(): text = text.replace(bad, good)
         return text.encode('latin-1', 'replace').decode('latin-1')
 
     @staticmethod
@@ -149,85 +120,103 @@ class PDFManager:
             pdf = FPDF()
             pdf.add_page()
             
+            # Header
             pdf.set_font("Arial", 'B', 20)
             pdf.set_text_color(15, 23, 42)
             pdf.cell(0, 15, "Medical Call QA Full Report", ln=True, align='C')
             pdf.ln(5)
             
+            # 1. General Overview (Matches Score & Agent Cards)
             pdf.set_font("Arial", 'B', 12)
-            pdf.set_fill_color(240, 240, 240)
+            pdf.set_fill_color(230, 235, 245)
             pdf.cell(0, 10, " General Overview", ln=True, fill=True)
             pdf.set_font("Arial", '', 12)
-            pdf.cell(0, 8, f"Agent: {PDFManager._sanitize(res.get('Agent_Name'))} | Date: {PDFManager._sanitize(res.get('Call_Date'))}", ln=True)
+            pdf.cell(0, 8, f"Agent Name: {PDFManager._sanitize(res.get('Agent_Name'))}", ln=True)
+            pdf.cell(0, 8, f"Call Date: {PDFManager._sanitize(res.get('Call_Date'))}", ln=True)
             pdf.set_font("Arial", 'B', 12)
-            pdf.cell(0, 8, f"Score: {res.get('Score', 'N/A')}/100 | Status: {res.get('Call_Status', 'N/A')}", ln=True)
+            pdf.cell(0, 8, f"Overall Score: {res.get('Score', 'N/A')}/100", ln=True)
+            pdf.cell(0, 8, f"Call Status: {res.get('Call_Status', 'N/A')}", ln=True)
             pdf.ln(5)
             
+            # 2. Clinical Intelligence (Matches the Grid in UI)
             pdf.set_font("Arial", 'B', 12)
-            pdf.set_fill_color(240, 240, 240)
-            pdf.cell(0, 10, " Medical & Clinical History", ln=True, fill=True)
-            pdf.set_font("Arial", '', 12)
-            
+            pdf.set_fill_color(230, 235, 245)
+            pdf.cell(0, 10, " Clinical Intelligence", ln=True, fill=True)
+            pdf.set_font("Arial", '', 11)
             med = res.get('Medical_History', {})
-            arth = med.get('Arthritis_Details', {})
-            med_text = (f"Kidney: {med.get('Kidney_Disease')} | Cancer: {med.get('Cancer')} | "
-                        f"Memory Loss: {med.get('Memory_Loss')} | Caregiver: {med.get('Caregiver')}\n"
-                        f"Medications: {', '.join(med.get('Medications', []))}\n"
-                        f"Arthritis: Joints({', '.join(arth.get('Affected_Joints', []))}), "
-                        f"Descriptor({arth.get('Pain_Descriptor')}), Triggers({', '.join(arth.get('Pain_Triggers', []))})")
-            pdf.multi_cell(0, 8, PDFManager._sanitize(med_text))
+            clinical_info = (
+                f"Memory/Cognitive: {med.get('Memory_Loss', 'N/A')} / {med.get('Cognitive_Impairment', 'N/A')}\n"
+                f"Kidney/Cancer: {med.get('Kidney_Disease', 'N/A')} / {med.get('Cancer', 'N/A')}\n"
+                f"Caregiver: {med.get('Caregiver', 'N/A')}\n"
+                f"Medications: {', '.join(med.get('Medications', [])) if med.get('Medications') else 'N/A'}"
+            )
+            pdf.multi_cell(0, 8, PDFManager._sanitize(clinical_info))
             pdf.ln(5)
 
+            # 3. detailed medical details (Arthritis & Surgery)
             pdf.set_font("Arial", 'B', 12)
-            pdf.cell(0, 8, "Surgical History:", ln=True)
-            pdf.set_font("Arial", '', 12)
-            for surg in res.get('Medical_History', {}).get('Surgical_History', []):
-                pdf.multi_cell(0, 8, PDFManager._sanitize(f"- {surg.get('Procedure')} ({surg.get('Date')}) Side: {surg.get('Side')} | Status: {surg.get('Status')}"))
+            pdf.cell(0, 8, "Specific Medical Nuances:", ln=True)
+            pdf.set_font("Arial", '', 11)
+            arth = med.get('Arthritis_Details', {})
+            arth_text = (f"Arthritis: Joints({', '.join(arth.get('Affected_Joints', []))}), "
+                         f"Descriptor({arth.get('Pain_Descriptor')}), Triggers({', '.join(arth.get('Pain_Triggers', []))})")
+            pdf.multi_cell(0, 8, PDFManager._sanitize(arth_text))
             
+            for surg in med.get('Surgical_History', []):
+                pdf.multi_cell(0, 8, PDFManager._sanitize(f"- Surgery: {surg.get('Procedure')} | Date: {surg.get('Date')} | Side: {surg.get('Side')}"))
             pdf.ln(5)
+
+            # 4. Provider Details
             pdf.set_font("Arial", 'B', 12)
-            pdf.set_fill_color(240, 240, 240)
+            pdf.set_fill_color(230, 235, 245)
             pdf.cell(0, 10, " Provider Details", ln=True, fill=True)
-            pdf.set_font("Arial", '', 12)
+            pdf.set_font("Arial", '', 11)
             for doc in res.get('Doctor_Details', []):
                 dme = doc.get('DME_Awareness', {})
-                doc_text = (f"Dr. {doc.get('Name')} ({doc.get('Specialty')}) | Visit: {doc.get('Last_Visit')}\n"
+                doc_text = (f"Dr. {doc.get('Name')} ({doc.get('Specialty')}) | Last Visit: {doc.get('Last_Visit')}\n"
                             f"Selection Reason: {doc.get('Selection_Reason')}\n"
                             f"DME Awareness: Cane({dme.get('Cane')}), Walker({dme.get('Walker')}), Brace({dme.get('Brace')})")
                 pdf.multi_cell(0, 8, PDFManager._sanitize(doc_text))
                 pdf.ln(2)
 
+            # 5. Objection Handling Map (Matches the lapped cards in UI)
             pdf.ln(5)
             pdf.set_font("Arial", 'B', 12)
-            pdf.set_fill_color(240, 240, 240)
-            pdf.cell(0, 10, " Objection Handling", ln=True, fill=True)
-            pdf.set_font("Arial", '', 12)
+            pdf.set_fill_color(230, 235, 245)
+            pdf.cell(0, 10, " Objection Handling Map", ln=True, fill=True)
+            pdf.set_font("Arial", '', 11)
             for obj in res.get('Objection_Handling', []):
-                obj_text = (f"#{obj.get('Objection_Number')} [{obj.get('Category')}]: {obj.get('Patient_Reasoning')}\n"
-                            f"Agent Response: {obj.get('Agent_Response')} -> Result: {obj.get('Resolution')}")
+                obj_text = (f"Objection #{obj.get('Objection_Number')} - {obj.get('Category')}\n"
+                            f"Patient Reasoning: {obj.get('Patient_Reasoning')}\n"
+                            f"Agent Response: {obj.get('Agent_Response')}\n"
+                            f"Result: {obj.get('Resolution')}")
                 pdf.multi_cell(0, 8, PDFManager._sanitize(obj_text))
-                pdf.ln(2)
+                pdf.ln(4)
+                pdf.line(10, pdf.get_y(), 200, pdf.get_y()) # Line between objections
+                pdf.ln(4)
 
+            # 6. Senior Auditor's Narrative
             pdf.ln(5)
             pdf.set_font("Arial", 'B', 12)
-            pdf.set_fill_color(240, 240, 240)
-            pdf.cell(0, 10, " Final Auditor's Narrative", ln=True, fill=True)
+            pdf.set_fill_color(230, 235, 245)
+            pdf.cell(0, 10, " Senior Auditor's Narrative", ln=True, fill=True)
             pdf.set_font("Arial", '', 12)
             pdf.multi_cell(0, 8, PDFManager._sanitize(res.get('Detailed_Analysis', {}).get('Narrative', 'N/A')))
             
+            # 7. Strengths & Weaknesses
+            pdf.ln(10)
+            pdf.set_font("Arial", 'B', 12)
+            pdf.cell(0, 8, "Key Strengths:", ln=True)
+            pdf.set_font("Arial", '', 11)
+            for s in res.get('Detailed_Analysis', {}).get('Strengths', []):
+                pdf.multi_cell(0, 8, f"- {PDFManager._sanitize(s)}")
+            
             pdf.ln(5)
             pdf.set_font("Arial", 'B', 12)
-            pdf.cell(0, 8, "Strengths:", ln=True)
-            pdf.set_font("Arial", '', 12)
-            for s in res.get('Detailed_Analysis', {}).get('Strengths', []):
-                pdf.cell(0, 8, f"- {PDFManager._sanitize(s)}", ln=True)
-            
-            pdf.ln(2)
-            pdf.set_font("Arial", 'B', 12)
-            pdf.cell(0, 8, "Weaknesses:", ln=True)
-            pdf.set_font("Arial", '', 12)
+            pdf.cell(0, 8, "Key Weaknesses:", ln=True)
+            pdf.set_font("Arial", '', 11)
             for w in res.get('Detailed_Analysis', {}).get('Weaknesses', []):
-                pdf.cell(0, 8, f"- {PDFManager._sanitize(w)}", ln=True)
+                pdf.multi_cell(0, 8, f"- {PDFManager._sanitize(w)}")
             
             output = pdf.output(dest='S')
             return output.encode('latin-1') if isinstance(output, str) else output
@@ -259,13 +248,35 @@ class UIHandler:
             }
             .card-title { color: #1e3a8a; font-size: 1.3rem; font-weight: bold; margin-bottom: 15px; }
             .data-label { font-weight: 600; color: #64748b; width: 160px; display: inline-block; }
-            .data-value { color: #1e293b; }
             </style>
             """, unsafe_allow_html=True)
 
     @staticmethod
     def render_header():
         st.markdown('<div class="main-header"><h1>🩺 Medical Call QA Dashboard</h1><p>Powered by Outsourcing Skill</p></div>', unsafe_allow_html=True)
+
+    @staticmethod
+    def render_verification_step(res: Dict[str, Any]):
+        st.markdown('<div class="card-title">🔍 Verify & Correct Extracted Names</div>', unsafe_allow_html=True)
+        st.info("AI may misspell names based on audio. Please verify and correct them before generating the report.")
+        with st.form("verification_form"):
+            col1, col2, col3 = st.columns(3)
+            with col1: agent_name = st.text_input("Agent Name", res.get('Agent_Name', ''))
+            with col2: patient_name = st.text_input("Patient Name", res.get('Patient_Name', ''))
+            with col3: call_date = st.text_input("Call Date", res.get('Call_Date', ''))
+            st.markdown("---")
+            st.markdown("**Doctor Names Verification**")
+            corrected_docs = []
+            for i, doc in enumerate(res.get('Doctor_Details', [])):
+                d_col1, d_col2 = st.columns([2, 1])
+                with d_col1: name = st.text_input(f"Doctor {i+1} Name", doc.get('Name', ''), key=f"doc_{i}")
+                with d_col2: spec = st.text_input(f"Specialty {i+1}", doc.get('Specialty', ''), key=f"spec_{i}")
+                corrected_docs.append({"Name": name, "Specialty": spec, **doc})
+            submitted = st.form_submit_button("✅ Confirm & Generate Final Report")
+            if submitted:
+                res['Agent_Name'], res['Patient_Name'], res['Call_Date'], res['Doctor_Details'] = agent_name, patient_name, call_date, corrected_docs
+                st.session_state.verified = True
+                st.rerun()
 
     @staticmethod
     def render_results(res: Dict[str, Any]):
@@ -276,9 +287,10 @@ class UIHandler:
                 <div style="text-align:center;"><h2 style="font-size: 3rem; color: #1e3a8a; margin: 0;">{res.get('Score', 'N/A')}/100</h2>
                 <p style="color: {color}; font-weight: bold;">Status: {res.get('Call_Status', 'N/A')}</p></div></div>""", unsafe_allow_html=True)
         with col2:
-            st.markdown(f"""<div class="custom-card"><div class="card-title">👤 Agent & Call</div>
-                <div style="font-size: 1.1rem;"><span class="data-label">Agent:</span> <span class="data-value">{res.get('Agent_Name', 'N/A')}</span><br>
-                <span class="data-label">Call Date:</span> <span class="data-value">{res.get('Call_Date', 'N/A')}</span></div></div>""", unsafe_allow_html=True)
+            st.markdown(f"""<div class="custom-card"><div class="card-title">👤 Verified Identity</div>
+                <div style="font-size: 1.1rem;"><span class="data-label">Agent:</span> {res.get('Agent_Name', 'N/A')}<br>
+                <span class="data-label">Patient:</span> {res.get('Patient_Name', 'N/A')}<br>
+                <span class="data-label">Date:</span> {res.get('Call_Date', 'N/A')}</div></div>""", unsafe_allow_html=True)
 
         st.markdown('<div class="card-title">📝 Senior Auditor\'s Narrative</div>', unsafe_allow_html=True)
         st.markdown(f'<div class="narrative-box">{res.get("Detailed_Analysis", {}).get("Narrative", "N/A")}</div>', unsafe_allow_html=True)
@@ -287,10 +299,10 @@ class UIHandler:
         med = res.get('Medical_History', {})
         st.markdown(f"""<div class="custom-card">
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-                <div><span class="data-label">Memory/Cognitive:</span> <span class="data-value">{med.get('Memory_Loss')} / {med.get('Cognitive_Impairment')}</span></div>
-                <div><span class="data-label">Caregiver:</span> <span class="data-value">{med.get('Caregiver')}</span></div>
-                <div><span class="data-label">Kidney/Cancer:</span> <span class="data-value">{med.get('Kidney_Disease')} / {med.get('Cancer')}</span></div>
-                <div><span class="data-label">Medications:</span> <span class="data-value">{', '.join(med.get('Medications', []))}</span></div>
+                <div><span class="data-label">Memory/Cognitive:</span> {med.get('Memory_Loss')} / {med.get('Cognitive_Impairment')}</div>
+                <div><span class="data-label">Caregiver:</span> {med.get('Caregiver')}</div>
+                <div><span class="data-label">Kidney/Cancer:</span> {med.get('Kidney_Disease')} / {med.get('Cancer')}</div>
+                <div><span class="data-label">Medications:</span> {', '.join(med.get('Medications', []))}</div>
             </div></div>""", unsafe_allow_html=True)
 
         st.markdown('<div class="card-title">🔄 Objection Handling Map</div>', unsafe_allow_html=True)
@@ -311,30 +323,35 @@ class UIHandler:
 
 def main():
     st.set_page_config(page_title=QAConfig.PAGE_TITLE, page_icon=QAConfig.PAGE_ICON, layout="wide")
+    if 'analysis_result' not in st.session_state: st.session_state.analysis_result = None
+    if 'verified' not in st.session_state: st.session_state.verified = False
     ui = UIHandler()
     ui.apply_styles()
     ui.render_header()
     analyzer = QAAnalyzer()
-    
     st.sidebar.header("📂 Upload Call Record")
     uploaded_file = st.sidebar.file_uploader("Upload MP3/WAV", type=["mp3", "wav"])
-    
     if uploaded_file:
         st.sidebar.audio(uploaded_file, format='audio/mp3')
         if st.sidebar.button("🚀 Analyze Call Now"):
+            st.session_state.verified = False
             with st.spinner('🤖 Auditor is drafting the report...'):
                 with tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(uploaded_file.name)[1]) as temp:
                     temp.write(uploaded_file.read())
                     temp_path = temp.name
                 try:
-                    result = analyzer.analyze_audio_final(temp_path)
-                    if result:
-                        st.success("✅ Analysis Complete!")
-                        ui.render_results(result)
+                    st.session_state.analysis_result = analyzer.analyze_audio_final(temp_path)
+                    st.success("✅ Analysis Complete!")
                 except Exception as e:
                     st.error(f"Error: {str(e)}")
                 finally:
                     if os.path.exists(temp_path): os.remove(temp_path)
+
+    if st.session_state.analysis_result:
+        if not st.session_state.verified:
+            ui.render_verification_step(st.session_state.analysis_result)
+        else:
+            ui.render_results(st.session_state.analysis_result)
     else:
         st.info("👈 Please upload an audio file to begin.")
 
