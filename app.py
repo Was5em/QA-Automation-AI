@@ -4,8 +4,7 @@ import json
 import os
 import tempfile
 import time
-import io
-from typing import Dict, Any, Optional
+from typing import Dict, Any, List
 from fpdf import FPDF
 
 class QAConfig:
@@ -34,39 +33,89 @@ class QAAnalyzer:
             audio_file = genai.get_file(audio_file.name)
         
         prompt = """
-        Act as an expert Senior Medical QA Auditor. Perform a microscopic analysis of the call. 
+        Act as an expert Senior Medical QA Auditor. Perform a microscopic analysis of the call.
         Capture every clinical and behavioral nuance without summarizing.
 
-        ### EXTRACTION REQUIREMENTS:
-        1. MEDICAL VETTING: 
-           - Check for Kidney disease, Cancer, Memory loss, or Cognitive impairment.
-           - Identify any Caregiver involvement.
-           - List all medications (including OTC like Tylenol).
-           - Detail Arthritis: Which joints? Pain description (e.g., achy)? Triggers (e.g., stairs, walking)?
-
-        2. PROVIDER LOGIC:
-           - Doctor names, visit timelines (e.g., 3 months ago), and selection logic (who chose the doctor?).
-           - Determine if the doctor was aware of current aids (e.g., cane) and if the aid was referred by the doctor.
-
-        3. OBJECTION HANDLING:
-           - Map every patient concern to the agent's resolution.
-           - Specifically capture: Refusals due to previous surgeries (e.g., knee replacement), suspicion, or need to consult a doctor first.
-           - Analyze how the agent handled "forgetfulness" or suspicion.
-
-        OUTPUT FORMAT (Strict JSON):
+        STRICT JSON OUTPUT SCHEMA:
         {
-          "Agent_Name": "", "Patient_Name": "", "DOB": "", "Address": "",
-          "Phone_Number": "", "Medicare_ID": "", "Brace_Size": "", "Waist_Size": "",
-          "Height": "", "Weight": "", "Pain_Level": "", 
-          "Pain_Details": "Description and triggers",
-          "Medical_History": "Kidney, Cancer, Memory, Caregiver, Medications",
-          "Doctor_Details": "Names, timelines, and referral logic",
-          "Objection_Handling": "Detailed map of Concern -> Resolution",
-          "Score": "Numerical value", 
-          "Detailed_Analysis": "Professional narrative connecting behavior to patient reactions",
-          "Strengths": "Key positives", 
-          "Weaknesses": "Key negatives", 
-          "Call_Status": "Pass/Fail"
+          "Agent_Name": "<String: Extract agent's name>",
+          "Call_Date": "<String: Extract date of call>",
+          "Patient_Name": "<String: Extract patient's full name>",
+          "DOB": "<String: Extract Date of Birth>",
+          "Address": "<String: Extract full address>",
+          "Phone_Number": "<String: Extract phone number>",
+          "Medicare_ID": "<String: Extract Medicare ID if mentioned>",
+          
+          "Medical_History": {
+            "Kidney_Disease": "<YES/NO/NOT_MENTIONED>",
+            "Cancer": "<YES/NO/NOT_MENTIONED>",
+            "Memory_Loss": "<YES/NO/NOT_MENTIONED>",
+            "Cognitive_Impairment": "<YES/NO/NOT_MENTIONED>",
+            "Caregiver": "<YES/NO - Provide reason if NO>",
+            "Medications": ["<String: List medication 1 (specify if OTC/Prescription)>"],
+            "Arthritis_Details": {
+              "Affected_Joints": ["<String: Joint 1>"],
+              "Pain_Descriptor": "<String: Patient's EXACT words for pain>",
+              "Pain_Triggers": ["<String: Trigger 1>"],
+              "Pain_Pattern": "<String: Time of day or progression>"
+            },
+            "Surgical_History": [
+              {
+                "Procedure": "<String: Exact procedure name>",
+                "Date": "<String: Exact date or timeframe>",
+                "Side": "<String: Left/Right/Bilateral/NA>",
+                "Status": "<Completed/Pending>",
+                "Patient_Expectation": "<String: Patient's belief about this surgery>"
+              }
+            ]
+          },
+          
+          "Doctor_Details": [
+            {
+              "Name": "<String: Exact spelling or phonetic equivalent>",
+              "Name_Confidence": "<HIGH/MEDIUM/LOW>",
+              "Specialty": "<String: PCP, Orthopedist, etc.>",
+              "Facility": "<String: Clinic or location name>",
+              "Last_Visit": "<String: Exact timeframe mentioned>",
+              "Next_Appointment": "<String: Exact date or timeframe>",
+              "Selection_Reason": "<String: Why did patient choose this doctor?>",
+              "DME_Awareness": {
+                "Cane": "<YES/NO/Unknown>",
+                "Cane_Referred_By_Provider": "<YES/NO/Not specified>",
+                "Walker": "<YES/NO/Unknown>",
+                "Walker_Referred_By_Provider": "<YES/NO/Not specified>",
+                "Brace": "<YES/NO/Unknown>",
+                "Brace_Referred_By_Provider": "<YES/NO/Not specified>"
+              }
+            }
+          ],
+          
+          "Objection_Handling": [
+            {
+              "Objection_Number": "<Integer>",
+              "Category": "<String>",
+              "Patient_Reasoning": "<String: Quote or paraphrase the exact hesitation>",
+              "Agent_Response": "<String: Specific strategy or phrase used by agent>",
+              "Resolution": "<Overcome/Partial/Not Overcome>",
+              "Patient_Final_Position": "<Accepted/Still Hesitant/Refused>"
+            }
+          ],
+          
+          "Equipment_Details": {
+            "Brace_Size": "<String>",
+            "Waist_Size": "<String>",
+            "Height": "<String>",
+            "Weight": "<String>"
+          },
+          
+          "Score": "<Integer: 0-100>",
+          "Call_Status": "<Pass/Fail>",
+          
+          "Detailed_Analysis": {
+            "Strengths": ["<String>"],
+            "Weaknesses": ["<String>"],
+            "Narrative": "<String: Objective microscopic summary of the interaction>"
+          }
         }
         """
         
@@ -109,53 +158,76 @@ class PDFManager:
             pdf.set_fill_color(240, 240, 240)
             pdf.cell(0, 10, " General Overview", ln=True, fill=True)
             pdf.set_font("Arial", '', 12)
-            pdf.cell(0, 8, f"Agent: {PDFManager._sanitize(res.get('Agent_Name'))}", ln=True)
-            pdf.cell(0, 8, f"Date: {time.strftime('%Y-%m-%d %H:%M')}", ln=True)
+            pdf.cell(0, 8, f"Agent: {PDFManager._sanitize(res.get('Agent_Name'))} | Date: {PDFManager._sanitize(res.get('Call_Date'))}", ln=True)
             pdf.set_font("Arial", 'B', 12)
             pdf.cell(0, 8, f"Score: {res.get('Score', 'N/A')}/100 | Status: {res.get('Call_Status', 'N/A')}", ln=True)
             pdf.ln(5)
             
             pdf.set_font("Arial", 'B', 12)
             pdf.set_fill_color(240, 240, 240)
-            pdf.cell(0, 10, " Patient Clinical Data", ln=True, fill=True)
+            pdf.cell(0, 10, " Medical & Clinical History", ln=True, fill=True)
             pdf.set_font("Arial", '', 12)
             
-            clinical_data = [
-                ("Patient", res.get('Patient_Name')),
-                ("DOB", res.get('DOB')),
-                ("Medical History", res.get('Medical_History')),
-                ("Pain Details", res.get('Pain_Details')),
-                ("Doctor Info", res.get('Doctor_Details')),
-                ("Sizes (Brace/Waist)", f"{res.get('Brace_Size')} / {res.get('Waist_Size')}"),
-                ("Height/Weight", f"{res.get('Height')} / {res.get('Weight')}"),
-            ]
-            for label, val in clinical_data:
-                pdf.multi_cell(0, 8, f"{label}: {PDFManager._sanitize(val)}")
+            med = res.get('Medical_History', {})
+            arth = med.get('Arthritis_Details', {})
+            med_text = (f"Kidney: {med.get('Kidney_Disease')} | Cancer: {med.get('Cancer')} | "
+                        f"Memory Loss: {med.get('Memory_Loss')} | Caregiver: {med.get('Caregiver')}\n"
+                        f"Medications: {', '.join(med.get('Medications', []))}\n"
+                        f"Arthritis: Joints({', '.join(arth.get('Affected_Joints', []))}), "
+                        f"Descriptor({arth.get('Pain_Descriptor')}), Triggers({', '.join(arth.get('Pain_Triggers', []))})")
+            pdf.multi_cell(0, 8, PDFManager._sanitize(med_text))
+            pdf.ln(5)
+
+            pdf.set_font("Arial", 'B', 12)
+            pdf.cell(0, 8, "Surgical History:", ln=True)
+            pdf.set_font("Arial", '', 12)
+            for surg in res.get('Medical_History', {}).get('Surgical_History', []):
+                pdf.multi_cell(0, 8, PDFManager._sanitize(f"- {surg.get('Procedure')} ({surg.get('Date')}) Side: {surg.get('Side')} | Status: {surg.get('Status')}"))
             
             pdf.ln(5)
             pdf.set_font("Arial", 'B', 12)
             pdf.set_fill_color(240, 240, 240)
-            pdf.cell(0, 10, " Objection Handling & Resolution", ln=True, fill=True)
+            pdf.cell(0, 10, " Provider Details", ln=True, fill=True)
             pdf.set_font("Arial", '', 12)
-            pdf.multi_cell(0, 8, PDFManager._sanitize(res.get('Objection_Handling')))
-            
+            for doc in res.get('Doctor_Details', []):
+                dme = doc.get('DME_Awareness', {})
+                doc_text = (f"Dr. {doc.get('Name')} ({doc.get('Specialty')}) | Visit: {doc.get('Last_Visit')}\n"
+                            f"Selection Reason: {doc.get('Selection_Reason')}\n"
+                            f"DME Awareness: Cane({dme.get('Cane')}), Walker({dme.get('Walker')}), Brace({dme.get('Brace')})")
+                pdf.multi_cell(0, 8, PDFManager._sanitize(doc_text))
+                pdf.ln(2)
+
             pdf.ln(5)
             pdf.set_font("Arial", 'B', 12)
             pdf.set_fill_color(240, 240, 240)
-            pdf.cell(0, 10, " Senior Auditor's Narrative", ln=True, fill=True)
+            pdf.cell(0, 10, " Objection Handling", ln=True, fill=True)
             pdf.set_font("Arial", '', 12)
-            pdf.multi_cell(0, 8, PDFManager._sanitize(res.get('Detailed_Analysis')))
+            for obj in res.get('Objection_Handling', []):
+                obj_text = (f"#{obj.get('Objection_Number')} [{obj.get('Category')}]: {obj.get('Patient_Reasoning')}\n"
+                            f"Agent Response: {obj.get('Agent_Response')} -> Result: {obj.get('Resolution')}")
+                pdf.multi_cell(0, 8, PDFManager._sanitize(obj_text))
+                pdf.ln(2)
+
+            pdf.ln(5)
+            pdf.set_font("Arial", 'B', 12)
+            pdf.set_fill_color(240, 240, 240)
+            pdf.cell(0, 10, " Final Auditor's Narrative", ln=True, fill=True)
+            pdf.set_font("Arial", '', 12)
+            pdf.multi_cell(0, 8, PDFManager._sanitize(res.get('Detailed_Analysis', {}).get('Narrative', 'N/A')))
             
             pdf.ln(5)
             pdf.set_font("Arial", 'B', 12)
             pdf.cell(0, 8, "Strengths:", ln=True)
             pdf.set_font("Arial", '', 12)
-            pdf.multi_cell(0, 8, PDFManager._sanitize(res.get('Strengths')))
+            for s in res.get('Detailed_Analysis', {}).get('Strengths', []):
+                pdf.cell(0, 8, f"- {PDFManager._sanitize(s)}", ln=True)
+            
             pdf.ln(2)
             pdf.set_font("Arial", 'B', 12)
             pdf.cell(0, 8, "Weaknesses:", ln=True)
             pdf.set_font("Arial", '', 12)
-            pdf.multi_cell(0, 8, PDFManager._sanitize(res.get('Weaknesses')))
+            for w in res.get('Detailed_Analysis', {}).get('Weaknesses', []):
+                pdf.cell(0, 8, f"- {PDFManager._sanitize(w)}", ln=True)
             
             output = pdf.output(dest='S')
             return output.encode('latin-1') if isinstance(output, str) else output
@@ -204,28 +276,32 @@ class UIHandler:
                 <div style="text-align:center;"><h2 style="font-size: 3rem; color: #1e3a8a; margin: 0;">{res.get('Score', 'N/A')}/100</h2>
                 <p style="color: {color}; font-weight: bold;">Status: {res.get('Call_Status', 'N/A')}</p></div></div>""", unsafe_allow_html=True)
         with col2:
-            st.markdown(f"""<div class="custom-card"><div class="card-title">👤 Agent</div>
-                <div style="font-size: 1.1rem;"><span class="data-label">Name:</span> <span class="data-value">{res.get('Agent_Name', 'N/A')}</span><br>
-                <span class="data-label">Date:</span> <span class="data-value">{time.strftime('%Y-%m-%d %H:%M')}</span></div></div>""", unsafe_allow_html=True)
+            st.markdown(f"""<div class="custom-card"><div class="card-title">👤 Agent & Call</div>
+                <div style="font-size: 1.1rem;"><span class="data-label">Agent:</span> <span class="data-value">{res.get('Agent_Name', 'N/A')}</span><br>
+                <span class="data-label">Call Date:</span> <span class="data-value">{res.get('Call_Date', 'N/A')}</span></div></div>""", unsafe_allow_html=True)
 
         st.markdown('<div class="card-title">📝 Senior Auditor\'s Narrative</div>', unsafe_allow_html=True)
-        st.markdown(f'<div class="narrative-box">{res.get("Detailed_Analysis", "N/A")}</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="narrative-box">{res.get("Detailed_Analysis", {}).get("Narrative", "N/A")}</div>', unsafe_allow_html=True)
 
         st.markdown('<div class="card-title">🏥 Clinical Intelligence</div>', unsafe_allow_html=True)
+        med = res.get('Medical_History', {})
         st.markdown(f"""<div class="custom-card">
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-                <div><span class="data-label">Medical History:</span> <span class="data-value">{res.get('Medical_History', 'N/A')}</span></div>
-                <div><span class="data-label">Pain Details:</span> <span class="data-value">{res.get('Pain_Details', 'N/A')}</span></div>
-                <div><span class="data-label">Doctor Info:</span> <span class="data-value">{res.get('Doctor_Details', 'N/A')}</span></div>
-                <div><span class="data-label">Waist/Brace:</span> <span class="data-value">{res.get('Waist_Size', 'N/A')} / {res.get('Brace_Size', 'N/A')}</span></div>
+                <div><span class="data-label">Memory/Cognitive:</span> <span class="data-value">{med.get('Memory_Loss')} / {med.get('Cognitive_Impairment')}</span></div>
+                <div><span class="data-label">Caregiver:</span> <span class="data-value">{med.get('Caregiver')}</span></div>
+                <div><span class="data-label">Kidney/Cancer:</span> <span class="data-value">{med.get('Kidney_Disease')} / {med.get('Cancer')}</span></div>
+                <div><span class="data-label">Medications:</span> <span class="data-value">{', '.join(med.get('Medications', []))}</span></div>
             </div></div>""", unsafe_allow_html=True)
 
-        st.markdown('<div class="card-title">🔄 Objection Handling</div>', unsafe_allow_html=True)
-        st.markdown(f'<div class="custom-card">{res.get("Objection_Handling", "N/A")}</div>', unsafe_allow_html=True)
+        st.markdown('<div class="card-title">🔄 Objection Handling Map</div>', unsafe_allow_html=True)
+        obj_html = "".join([f'<div class="custom-card"><b>#{o.get("Objection_Number")} {o.get("Category")}:</b><br>{o.get("Patient_Reasoning")} <br><b>Resolution:</b> {o.get("Agent_Response")} &rarr; {o.get("Resolution")}</div>' for o in res.get('Objection_Handling', [])])
+        st.markdown(obj_html, unsafe_allow_html=True)
 
         tab1, tab2 = st.tabs(["🌟 Strengths", "⚠️ Weaknesses"])
-        with tab1: st.success(res.get("Strengths", "N/A"))
-        with tab2: st.error(res.get("Weaknesses", "N/A"))
+        with tab1: 
+            for s in res.get('Detailed_Analysis', {}).get('Strengths', []): st.success(s)
+        with tab2: 
+            for w in res.get('Detailed_Analysis', {}).get('Weaknesses', []): st.error(w)
 
         st.markdown('<div class="card-title" style="margin-top: 2rem;">📥 Export Full Report</div>', unsafe_allow_html=True)
         pdf_data = PDFManager.create_full_pdf(res)
