@@ -5,27 +5,21 @@ import os
 import tempfile
 import time
 import io
-from fpdf import FPDF # مكتبة توليد ملفات PDF
+from typing import Dict, Any, Optional
+from fpdf import FPDF
 
-# ==========================================
-# 1. الإعدادات العامة (Configuration)
-# ==========================================
 class QAConfig:
-    # يفضل وضع المفتاح في st.secrets للامان، هنا وضعناه كما هو في كودك
     API_KEY = st.secrets.get("GOOGLE_API_KEY", "AIzaSyDjOP3Ps9lsLAeEp5bgexGMAn7AJqn04Ek")
     MODEL_NAME = 'models/gemini-flash-latest'
     PAGE_TITLE = "Medical Call QA Dashboard"
     PAGE_ICON = "🩺"
 
-# ==========================================
-# 2. محرك التحليل (AI Analyzer)
-# ==========================================
 class QAAnalyzer:
     def __init__(self):
         genai.configure(api_key=QAConfig.API_KEY)
         self.model = genai.GenerativeModel(QAConfig.MODEL_NAME)
 
-    def _clean_json(self, text):
+    def _clean_json(self, text: str) -> str:
         text = text.strip()
         if text.startswith("```json"):
             text = text[7:]
@@ -33,33 +27,46 @@ class QAAnalyzer:
             text = text[:-3]
         return text.strip()
 
-    def analyze_audio_final(self, file_path):
+    def analyze_audio_final(self, file_path: str) -> Dict[str, Any]:
         audio_file = genai.upload_file(path=file_path)
         while audio_file.state.name == "PROCESSING":
             time.sleep(2)
             audio_file = genai.get_file(audio_file.name)
         
         prompt = """
-        Act as a Senior Medical QA Manager with 20 years of experience. 
-        Your goal is to provide a human-like, professional, and nuanced evaluation. 
-        Avoid robotic lists for the main analysis; write a professional narrative.
+        Act as an expert Senior Medical QA Auditor. Perform a microscopic analysis of the call. 
+        Capture every clinical and behavioral nuance without summarizing.
 
-        ### GUIDELINES:
-        1. **Contextual Analysis:** Explain the 'Why'. Connect agent behavior to patient reaction.
-        2. **Emotional Intelligence:** Analyze the patient's tone and the agent's response.
-        3. **Persuasion vs. Pressure:** Distinguish between professional objection handling and unethical pressure.
-        4. **Active Listening:** Flag if the agent repeats questions already answered.
+        ### EXTRACTION REQUIREMENTS:
+        1. MEDICAL VETTING: 
+           - Check for Kidney disease, Cancer, Memory loss, or Cognitive impairment.
+           - Identify any Caregiver involvement.
+           - List all medications (including OTC like Tylenol).
+           - Detail Arthritis: Which joints? Pain description (e.g., achy)? Triggers (e.g., stairs, walking)?
+
+        2. PROVIDER LOGIC:
+           - Doctor names, visit timelines (e.g., 3 months ago), and selection logic (who chose the doctor?).
+           - Determine if the doctor was aware of current aids (e.g., cane) and if the aid was referred by the doctor.
+
+        3. OBJECTION HANDLING:
+           - Map every patient concern to the agent's resolution.
+           - Specifically capture: Refusals due to previous surgeries (e.g., knee replacement), suspicion, or need to consult a doctor first.
+           - Analyze how the agent handled "forgetfulness" or suspicion.
 
         OUTPUT FORMAT (Strict JSON):
         {
           "Agent_Name": "", "Patient_Name": "", "DOB": "", "Address": "",
-          "Phone_Number": "", "Medicare_ID": "", "Brace_Size": "", "Height": "",
-          "Weight": "", "Pain_Level": "", "Doctor_Name": "", "Last_Visit_Date": "",
-          "Previous_Treatments": "", "Score": "Numerical value", 
-          "Detailed_Analysis": "A professional 2-3 paragraph narrative evaluation.",
+          "Phone_Number": "", "Medicare_ID": "", "Brace_Size": "", "Waist_Size": "",
+          "Height": "", "Weight": "", "Pain_Level": "", 
+          "Pain_Details": "Description and triggers",
+          "Medical_History": "Kidney, Cancer, Memory, Caregiver, Medications",
+          "Doctor_Details": "Names, timelines, and referral logic",
+          "Objection_Handling": "Detailed map of Concern -> Resolution",
+          "Score": "Numerical value", 
+          "Detailed_Analysis": "Professional narrative connecting behavior to patient reactions",
           "Strengths": "Key positives", 
           "Weaknesses": "Key negatives", 
-          "Call_Status": "Pass (if Score >= 75) / Fail (if Score < 75)"
+          "Call_Status": "Pass/Fail"
         }
         """
         
@@ -70,145 +77,96 @@ class QAAnalyzer:
         
         try:
             data = json.loads(self._clean_json(response.text))
+            return data[0] if isinstance(data, list) else data
         except Exception as e:
-            raise Exception(f"Failed to parse AI response: {str(e)}")
-        
-        if isinstance(data, list):
-            data = data[0] if len(data) > 0 else {}
-        
-        return data
+            raise Exception(f"AI Parsing Error: {str(e)}")
 
-# ==========================================
-# 3. مدير التقارير و PDF (PDF Report Manager)
-# ==========================================
 class PDFManager:
     @staticmethod
-    def _sanitize_text(text):
-        """
-        حل مشكلة latin-1: 
-        هذه الدالة تستبدل الرموز التي لا يدعمها PDF (مثل الشرطة الطويلة وعلامات التنصيص الذكية) 
-        برموز عادية لضمان عدم توقف البرنامج.
-        """
-        if text is None:
-            return "N/A"
-        
+    def _sanitize(text: Any) -> str:
+        if text is None: return "N/A"
         text = str(text)
-        
-        # خريطة استبدال الرموز الشائعة المسببة للمشاكل
         replacements = {
-            '\u2013': '-', # en dash
-            '\u2014': '-', # em dash
-            '\u2018': "'", # left single quote
-            '\u2019': "'", # right single quote
-            '\u201c': '"', # left double quote
-            '\u201d': '"', # right double quote
-            '\u2026': '...', # ellipsis
-            '\u00a0': ' ',   # non-breaking space
+            '\u2013': '-', '\u2014': '-', '\u2018': "'", '\u2019': "'", 
+            '\u201c': '"', '\u201d': '"', '\u2026': '...', '\u00a0': ' '
         }
-        for bad_char, good_char in replacements.items():
-            text = text.replace(bad_char, good_char)
-        
-        # تحويل أي رمز متبقي غير مدعوم إلى علامة استفهام بدلاً من الانهيار
+        for bad, good in replacements.items():
+            text = text.replace(bad, good)
         return text.encode('latin-1', 'replace').decode('latin-1')
 
     @staticmethod
-    def create_full_pdf(res):
-        """توليد ملف PDF وإرجاعه بصيغة bytes صحيحة لضمان عدم نزوله فارغاً"""
+    def create_full_pdf(res: Dict[str, Any]) -> bytes:
         try:
             pdf = FPDF()
             pdf.add_page()
             
-            # --- Header ---
             pdf.set_font("Arial", 'B', 20)
-            pdf.set_text_color(15, 23, 42) # Dark Blue
+            pdf.set_text_color(15, 23, 42)
             pdf.cell(0, 15, "Medical Call QA Full Report", ln=True, align='C')
             pdf.ln(5)
             
-            # --- Summary Section ---
             pdf.set_font("Arial", 'B', 12)
             pdf.set_fill_color(240, 240, 240)
             pdf.cell(0, 10, " General Overview", ln=True, fill=True)
             pdf.set_font("Arial", '', 12)
-            pdf.ln(2)
-            pdf.cell(0, 8, f"Agent Name: {PDFManager._sanitize_text(res.get('Agent_Name'))}", ln=True)
-            pdf.cell(0, 8, f"Analysis Date: {time.strftime('%Y-%m-%d %H:%M')}", ln=True)
+            pdf.cell(0, 8, f"Agent: {PDFManager._sanitize(res.get('Agent_Name'))}", ln=True)
+            pdf.cell(0, 8, f"Date: {time.strftime('%Y-%m-%d %H:%M')}", ln=True)
             pdf.set_font("Arial", 'B', 12)
-            pdf.cell(0, 8, f"Overall Score: {res.get('Score', 'N/A')}/100", ln=True)
-            pdf.cell(0, 8, f"Call Status: {res.get('Call_Status', 'N/A')}", ln=True)
-            pdf.ln(10)
+            pdf.cell(0, 8, f"Score: {res.get('Score', 'N/A')}/100 | Status: {res.get('Call_Status', 'N/A')}", ln=True)
+            pdf.ln(5)
             
-            # --- Patient Data Section ---
             pdf.set_font("Arial", 'B', 12)
             pdf.set_fill_color(240, 240, 240)
-            pdf.cell(0, 10, " Patient Information", ln=True, fill=True)
+            pdf.cell(0, 10, " Patient Clinical Data", ln=True, fill=True)
             pdf.set_font("Arial", '', 12)
-            pdf.ln(2)
             
-            patient_info = [
-                ("Patient Name", res.get('Patient_Name')),
+            clinical_data = [
+                ("Patient", res.get('Patient_Name')),
                 ("DOB", res.get('DOB')),
-                ("Phone", res.get('Phone_Number')),
-                ("Address", res.get('Address')),
-                ("Medicare ID", res.get('Medicare_ID')),
-                ("Doctor Name", res.get('Doctor_Name')),
-                ("Last Visit", res.get('Last_Visit_Date')),
-                ("Pain Level", res.get('Pain_Level')),
-                ("Height/Weight", f"{res.get('Height', 'N/A')} / {res.get('Weight', 'N/A')}"),
-                ("Brace Size", res.get('Brace_Size')),
+                ("Medical History", res.get('Medical_History')),
+                ("Pain Details", res.get('Pain_Details')),
+                ("Doctor Info", res.get('Doctor_Details')),
+                ("Sizes (Brace/Waist)", f"{res.get('Brace_Size')} / {res.get('Waist_Size')}"),
+                ("Height/Weight", f"{res.get('Height')} / {res.get('Weight')}"),
             ]
+            for label, val in clinical_data:
+                pdf.multi_cell(0, 8, f"{label}: {PDFManager._sanitize(val)}")
             
-            for label, val in patient_info:
-                pdf.cell(0, 8, f"{label}: {PDFManager._sanitize_text(val)}", ln=True)
-            
-            pdf.ln(10)
-            
-            # --- Detailed Analysis Section ---
+            pdf.ln(5)
             pdf.set_font("Arial", 'B', 12)
             pdf.set_fill_color(240, 240, 240)
-            pdf.cell(0, 10, " Senior Auditor's Detailed Analysis", ln=True, fill=True)
+            pdf.cell(0, 10, " Objection Handling & Resolution", ln=True, fill=True)
             pdf.set_font("Arial", '', 12)
-            pdf.ln(2)
-            pdf.multi_cell(0, 8, PDFManager._sanitize_text(res.get('Detailed_Analysis')))
+            pdf.multi_cell(0, 8, PDFManager._sanitize(res.get('Objection_Handling')))
             
-            pdf.ln(10)
-            
-            # --- Feedback Summary ---
+            pdf.ln(5)
             pdf.set_font("Arial", 'B', 12)
             pdf.set_fill_color(240, 240, 240)
-            pdf.cell(0, 10, " Quick Feedback Summary", ln=True, fill=True)
-            pdf.ln(2)
+            pdf.cell(0, 10, " Senior Auditor's Narrative", ln=True, fill=True)
+            pdf.set_font("Arial", '', 12)
+            pdf.multi_cell(0, 8, PDFManager._sanitize(res.get('Detailed_Analysis')))
             
+            pdf.ln(5)
             pdf.set_font("Arial", 'B', 12)
             pdf.cell(0, 8, "Strengths:", ln=True)
             pdf.set_font("Arial", '', 12)
-            pdf.multi_cell(0, 8, PDFManager._sanitize_text(res.get('Strengths')))
-            
+            pdf.multi_cell(0, 8, PDFManager._sanitize(res.get('Strengths')))
             pdf.ln(2)
             pdf.set_font("Arial", 'B', 12)
             pdf.cell(0, 8, "Weaknesses:", ln=True)
             pdf.set_font("Arial", '', 12)
-            pdf.multi_cell(0, 8, PDFManager._sanitize_text(res.get('Weaknesses')))
+            pdf.multi_cell(0, 8, PDFManager._sanitize(res.get('Weaknesses')))
             
-            # --- الحل النهائي لمشكلة الملف الفارغ ---
-            # استخراج البيانات كـ String (S) ثم تحويلها فوراً إلى bytes
-            pdf_output = pdf.output(dest='S')
-            
-            if isinstance(pdf_output, str):
-                return pdf_output.encode('latin-1')
-            return pdf_output
-
+            output = pdf.output(dest='S')
+            return output.encode('latin-1') if isinstance(output, str) else output
         except Exception as e:
-            st.error(f"PDF Error: {str(e)}")
-            return b"" # إرجاع bytes فارغة في حالة الخطأ
+            st.error(f"PDF Generation Error: {str(e)}")
+            return b""
 
-# ==========================================
-# 4. واجهة المستخدم (UI Handler)
-# ==========================================
 class UIHandler:
     @staticmethod
     def apply_styles():
-        st.markdown(
-            """
+        st.markdown("""
             <style>
             .stApp { background-color: #f8f9fa; }
             .main-header {
@@ -217,124 +175,64 @@ class UIHandler:
                 text-align: center; margin-bottom: 2rem; box-shadow: 0 4px 15px rgba(0,0,0,0.1);
             }
             .main-header h1 { color: white !important; font-size: 2.5rem !important; margin-bottom: 0; }
-            .main-header p { font-size: 1.2rem; opacity: 0.9; }
             .custom-card {
                 background-color: white; padding: 20px; border-radius: 15px;
                 border-left: 5px solid #2563eb; box-shadow: 0 4px 6px rgba(0,0,0,0.05);
-                margin-bottom: 20px; transition: transform 0.2s;
+                margin-bottom: 20px;
             }
             .narrative-box {
                 background-color: #ffffff; padding: 25px; border-radius: 15px;
-                border: 1px solid #d1d5db; box-shadow: inset 0 2px 4px rgba(0,0,0,0.05);
-                font-family: 'Georgia', serif; line-height: 1.7; color: #334155;
-                font-size: 1.1rem; margin-bottom: 20px; text-align: justify;
+                border: 1px solid #d1d5db; font-family: 'Georgia', serif;
+                line-height: 1.7; color: #334155; font-size: 1.1rem; margin-bottom: 20px;
             }
-            .card-title {
-                color: #1e3a8a; font-size: 1.3rem; font-weight: bold;
-                margin-bottom: 15px; display: flex; align-items: center; gap: 10px;
-            }
-            .data-label { font-weight: 600; color: #64748b; width: 150px; display: inline-block; }
-            .data-value { color: #1e293b; font-weight: 400; }
-            section[data-testid="stSidebar"] { background-color: #0f172a !important; }
-            section[data-testid="stSidebar"] .stText, section[data-testid="stSidebar"] label { color: white !important; }
+            .card-title { color: #1e3a8a; font-size: 1.3rem; font-weight: bold; margin-bottom: 15px; }
+            .data-label { font-weight: 600; color: #64748b; width: 160px; display: inline-block; }
+            .data-value { color: #1e293b; }
             </style>
-            """,
-            unsafe_allow_html=True
-        )
+            """, unsafe_allow_html=True)
 
     @staticmethod
     def render_header():
-        st.markdown("""
-            <div class="main-header">
-                <h1>🩺 Medical Call QA Dashboard</h1>
-                <p>Powered by Outsourcing Skill - Advanced Quality Control</p>
-            </div>
-        """, unsafe_allow_html=True)
+        st.markdown('<div class="main-header"><h1>🩺 Medical Call QA Dashboard</h1><p>Powered by Outsourcing Skill</p></div>', unsafe_allow_html=True)
 
     @staticmethod
-    def render_results(result):
-        if not result:
-            st.error("No data received from AI.")
-            return
-        
+    def render_results(res: Dict[str, Any]):
         col1, col2 = st.columns([1, 2])
         with col1:
-            status_color = "green" if result.get("Call_Status") == "Pass" else "red"
-            st.markdown(f"""
-                <div class="custom-card">
-                    <div class="card-title">📊 Overall Score</div>
-                    <div style="text-align:center;">
-                        <h2 style="font-size: 3rem; color: #1e3a8a; margin: 0;">{result.get('Score', 'N/A')}/100</h2>
-                        <p style="color: {status_color}; font-weight: bold; font-size: 1.2rem;">Status: {result.get('Call_Status', 'N/A')}</p>
-                    </div>
-                </div>
-            """, unsafe_allow_html=True)
+            color = "green" if res.get("Call_Status") == "Pass" else "red"
+            st.markdown(f"""<div class="custom-card"><div class="card-title">📊 Score</div>
+                <div style="text-align:center;"><h2 style="font-size: 3rem; color: #1e3a8a; margin: 0;">{res.get('Score', 'N/A')}/100</h2>
+                <p style="color: {color}; font-weight: bold;">Status: {res.get('Call_Status', 'N/A')}</p></div></div>""", unsafe_allow_html=True)
         with col2:
-            st.markdown(f"""
-                <div class="custom-card">
-                    <div class="card-title">👤 Agent Details</div>
-                    <div style="font-size: 1.1rem;">
-                        <span class="data-label">Agent Name:</span> <span class="data-value">{result.get('Agent_Name', 'N/A')}</span><br>
-                        <span class="data-label">Analysis Date:</span> <span class="data-value">{time.strftime('%Y-%m-%d %H:%M')}</span>
-                    </div>
-                </div>
-            """, unsafe_allow_html=True)
-            
-        # التحليل السردي
-        st.markdown('<div class="card-title">📝 Senior Auditor\'s Detailed Analysis</div>', unsafe_allow_html=True)
-        st.markdown(f"""
-            <div class="narrative-box">
-                {result.get('Detailed_Analysis', 'No detailed analysis available.')}
-            </div>
-        """, unsafe_allow_html=True)
+            st.markdown(f"""<div class="custom-card"><div class="card-title">👤 Agent</div>
+                <div style="font-size: 1.1rem;"><span class="data-label">Name:</span> <span class="data-value">{res.get('Agent_Name', 'N/A')}</span><br>
+                <span class="data-label">Date:</span> <span class="data-value">{time.strftime('%Y-%m-%d %H:%M')}</span></div></div>""", unsafe_allow_html=True)
 
-        # البيانات الطبية
-        st.markdown(f"""
-            <div class="custom-card">
-                <div class="card-title">🏥 Extracted Medical Data</div>
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-                    <div><span class="data-label">Patient Name:</span> <span class="data-value">{result.get('Patient_Name', 'N/A')}</span></div>
-                    <div><span class="data-label">Doctor Name:</span> <span class="data-value">{result.get('Doctor_Name', 'N/A')}</span></div>
-                    <div><span class="data-label">DOB:</span> <span class="data-value">{result.get('DOB', 'N/A')}</span></div>
-                    <div><span class="data-label">Last Visit:</span> <span class="data-value">{result.get('Last_Visit_Date', 'N/A')}</span></div>
-                    <div><span class="data-label">Phone:</span> <span class="data-value">{result.get('Phone_Number', 'N/A')}</span></div>
-                    <div><span class="data-label">Pain Level:</span> <span class="data-value">{result.get('Pain_Level', 'N/A')}</span></div>
-                    <div><span class="data-label">Address:</span> <span class="data-value">{result.get('Address', 'N/A')}</span></div>
-                    <div><span class="data-label">Brace Size:</span> <span class="data-value">{result.get('Brace_Size', 'N/A')}</span></div>
-                    <div><span class="data-label">Medicare ID:</span> <span class="data-value">{result.get('Medicare_ID', 'N/A')}</span></div>
-                    <div><span class="data-label">Height/Weight:</span> <span class="data-value">{result.get('Height', 'N/A')} / {result.get('Weight', 'N/A')}</span></div>
-                </div>
-            </div>
-        """, unsafe_allow_html=True)
-        
-        # ملخص سريع
-        st.markdown('<div class="card-title">💡 Quick Summary</div>', unsafe_allow_html=True)
+        st.markdown('<div class="card-title">📝 Senior Auditor\'s Narrative</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="narrative-box">{res.get("Detailed_Analysis", "N/A")}</div>', unsafe_allow_html=True)
+
+        st.markdown('<div class="card-title">🏥 Clinical Intelligence</div>', unsafe_allow_html=True)
+        st.markdown(f"""<div class="custom-card">
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                <div><span class="data-label">Medical History:</span> <span class="data-value">{res.get('Medical_History', 'N/A')}</span></div>
+                <div><span class="data-label">Pain Details:</span> <span class="data-value">{res.get('Pain_Details', 'N/A')}</span></div>
+                <div><span class="data-label">Doctor Info:</span> <span class="data-value">{res.get('Doctor_Details', 'N/A')}</span></div>
+                <div><span class="data-label">Waist/Brace:</span> <span class="data-value">{res.get('Waist_Size', 'N/A')} / {res.get('Brace_Size', 'N/A')}</span></div>
+            </div></div>""", unsafe_allow_html=True)
+
+        st.markdown('<div class="card-title">🔄 Objection Handling</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="custom-card">{res.get("Objection_Handling", "N/A")}</div>', unsafe_allow_html=True)
+
         tab1, tab2 = st.tabs(["🌟 Strengths", "⚠️ Weaknesses"])
-        with tab1:
-            st.success(result.get("Strengths", "None listed."))
-        with tab2:
-            st.error(result.get("Weaknesses", "None listed."))
+        with tab1: st.success(res.get("Strengths", "N/A"))
+        with tab2: st.error(res.get("Weaknesses", "N/A"))
 
-        # ==========================================
-        # زر تحميل PDF الشامل
-        # ==========================================
         st.markdown('<div class="card-title" style="margin-top: 2rem;">📥 Export Full Report</div>', unsafe_allow_html=True)
-        
-        pdf_data = PDFManager.create_full_pdf(result)
-        if pdf_data:
-            st.download_button(
-                label="📄 Download Complete Analysis PDF",
-                data=pdf_data,
-                file_name=f"Medical_QA_{result.get('Agent_Name', 'Agent')}_{time.strftime('%Y%m%d')}.pdf",
-                mime="application/pdf",
-                use_container_width=True
-            )
-        else:
-            st.error("Could not generate PDF data.")
+        pdf_data = PDFManager.create_full_pdf(res)
+        st.download_button(label="📄 Download Complete Analysis PDF", data=pdf_data, 
+                           file_name=f"Medical_QA_{res.get('Agent_Name', 'Agent')}.pdf", 
+                           mime="application/pdf", use_container_width=True)
 
-# ==========================================
-# 5. الدالة الرئيسية (Main App)
-# ==========================================
 def main():
     st.set_page_config(page_title=QAConfig.PAGE_TITLE, page_icon=QAConfig.PAGE_ICON, layout="wide")
     ui = UIHandler()
@@ -343,12 +241,12 @@ def main():
     analyzer = QAAnalyzer()
     
     st.sidebar.header("📂 Upload Call Record")
-    uploaded_file = st.sidebar.file_uploader("Upload an MP3 or WAV file", type=["mp3", "wav"])
+    uploaded_file = st.sidebar.file_uploader("Upload MP3/WAV", type=["mp3", "wav"])
     
     if uploaded_file:
         st.sidebar.audio(uploaded_file, format='audio/mp3')
         if st.sidebar.button("🚀 Analyze Call Now"):
-            with st.spinner('🤖 Senior Auditor is analyzing and drafting the report...'):
+            with st.spinner('🤖 Auditor is drafting the report...'):
                 with tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(uploaded_file.name)[1]) as temp:
                     temp.write(uploaded_file.read())
                     temp_path = temp.name
@@ -357,21 +255,12 @@ def main():
                     if result:
                         st.success("✅ Analysis Complete!")
                         ui.render_results(result)
-                    else:
-                        st.error("AI returned empty results.")
                 except Exception as e:
-                    st.error(f"Analysis Error: {str(e)}")
+                    st.error(f"Error: {str(e)}")
                 finally:
-                    if os.path.exists(temp_path):
-                        os.remove(temp_path)
+                    if os.path.exists(temp_path): os.remove(temp_path)
     else:
-        st.info("👈 Please upload an audio file from the sidebar to begin.")
-        c1, c2, c3 = st.columns([1, 1, 1])
-        with c2:
-            try:
-                st.image("logo.png", width=250)
-            except:
-                st.markdown("<h3 style='text-align:center; color:grey;'>Logo Image Missing</h3>", unsafe_allow_html=True)
+        st.info("👈 Please upload an audio file to begin.")
 
 if __name__ == "__main__":
     main()
