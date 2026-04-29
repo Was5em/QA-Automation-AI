@@ -228,15 +228,26 @@ class UIHandler:
             .stApp { background-color: #f8f9fa; }
             .main-header { background: linear-gradient(90deg, #0f172a 0%, #2563eb 100%); color: white; padding: 2rem; border-radius: 15px; text-align: center; margin-bottom: 2rem; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
             .main-header h1 { color: white !important; font-size: 2.5rem !important; margin-bottom: 0; }
-            .custom-card { background-color: white; padding: 20px; border-radius: 15px; border-left: 5px solid #2563eb; box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-bottom: 20px; }
-            .narrative-box { background-color: #ffffff; padding: 25px; border-radius: 15px; border: 1px solid #d1d5db; font-family: 'Georgia', serif; line-height: 1.7; color: #334155; font-size: 1.1rem; margin-bottom: 20px; }
-            .card-title { color: #1e3a8a; font-size: 1.3rem; font-weight: bold; margin-bottom: 15px; }
-            .data-label { font-weight: 600; color: #64748b; width: 160px; display: inline-block; }
-            .equipment-row { display: flex; justify-content: space-around; text-align: center; background: #eff6ff; padding: 15px; border-radius: 10px; border: 1px dashed #2563eb; }
+            
+            /* التعديل هنا: أضفنا color: #334155 لضمان أن يكون الخط غامقاً دائماً داخل الكارت */
+            .custom-card { 
+                background-color: white; 
+                color: #334155 !important; 
+                padding: 20px; 
+                border-radius: 15px; 
+                border-left: 5px solid #2563eb; 
+                box-shadow: 0 4px 6px rgba(0,0,0,0.05); 
+                margin-bottom: 20px; 
+            }
+            
+            .narrative-box { background-color: #ffffff; padding: 25px; border-radius: 15px; border: 1px solid #d1d5db; font-family: 'Georgia', serif; line-height: 1.7; color: #334155 !important; font-size: 1.1rem; margin-bottom: 20px; }
+            .card-title { color: #1e3a8a !important; font-size: 1.3rem; font-weight: bold; margin-bottom: 15px; }
+            .data-label { font-weight: 600; color: #64748b !important; width: 160px; display: inline-block; }
+            .equipment-row { display: flex; justify-content: space-around; text-align: center; background: #eff6ff; padding: 15px; border-radius: 10px; border: 1px dashed #2563eb; color: #334155 !important; }
             .eq-item { display: flex; flex-direction: column; }
-            .eq-val { font-weight: bold; color: #1e3a8a; font-size: 1.1rem; }
-            .stat-card { background: #ffffff; padding: 15px; border-radius: 10px; text-align: center; border: 1px solid #e2e8f0; }
-            .score-badge { background: #1e3a8a; color: white; padding: 2px 8px; border-radius: 5px; font-weight: bold; margin-right: 10px; }
+            .eq-val { font-weight: bold; color: #1e3a8a !important; font-size: 1.1rem; }
+            .stat-card { background: #ffffff; padding: 15px; border-radius: 10px; text-align: center; border: 1px solid #e2e8f0; color: #334155 !important; }
+            .score-badge { background: #1e3a8a; color: white !important; padding: 2px 8px; border-radius: 5px; font-weight: bold; margin-right: 10px; }
             </style>
             """, unsafe_allow_html=True)
 
@@ -275,7 +286,6 @@ class UIHandler:
         with col2:
             st.markdown(f"""<div class="custom-card"><div class="card-title">👤 Call Info</div><div style="font-size: 1.1rem;"><span class="data-label">Agent:</span> {res.get('Agent_Name', 'N/A')}<br><span class="data-label">Date:</span> {res.get('Call_Date', 'N/A')}</div></div>""", unsafe_allow_html=True)
         
-        # Detailed QA Scoring (Renders all pillars dynamically from the JSON)
         st.markdown('<div class="card-title">📋 Detailed QA Feedback</div>', unsafe_allow_html=True)
         scoring = res.get('Detailed_Scoring', {})
         for category, data in scoring.items():
@@ -299,7 +309,6 @@ class UIHandler:
         st.markdown('<div class="card-title" style="margin-top: 2rem;">📥 Export Full Report</div>', unsafe_allow_html=True)
         pdf_data = PDFManager.create_full_pdf(res)
         st.download_button(label="📄 Download Complete Analysis PDF", data=pdf_data, file_name=f"Medical_QA_{res.get('Agent_Name', 'Agent')}.pdf", mime="application/pdf", use_container_width=True)
-
 # ==========================================
 # 6. Main Application Flow
 # ==========================================
