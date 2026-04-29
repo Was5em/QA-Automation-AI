@@ -4,14 +4,55 @@ import json
 import os
 import tempfile
 import time
+from datetime import datetime
 from typing import Dict, Any, List
 from fpdf import FPDF
 
 class QAConfig:
     API_KEY = st.secrets.get("GOOGLE_API_KEY", "AIzaSyDjOP3Ps9lsLAeEp5bgexGMAn7AJqn04Ek")
-    MODEL_NAME = 'models/gemini-flash-latest'
+    # --- إعدادات المدير والحسابات ---
+    ADMIN_PASSWORD = st.secrets.get("ADMIN_PASSWORD", "admin123") # يمكنك تغيير كلمة السر هنا
+    PRICE_INPUT_1M = 0.075  # سعر المليون توكن مدخل (Gemini 1.5 Flash)
+    PRICE_OUTPUT_1M = 0.30  # سعر المليون توكن مخرج (Gemini 1.5 Flash)
+    USAGE_FILE = "usage_log.json"
+    # -----------------------------
+    MODEL_NAME = 'models/gemini-1.5-flash-latest'
     PAGE_TITLE = "Medical Call QA Dashboard"
     PAGE_ICON = "🩺"
+
+# --- نظام تتبع الاستهلاك والمصاريف ---
+class UsageTracker:
+    @staticmethod
+    def log_usage(prompt_tokens: int, response_tokens: int):
+        today = datetime.now().strftime("%Y-%m-%d")
+        data = UsageTracker.load_logs()
+        
+        if today not in data:
+            data[today] = {"input": 0, "output": 0, "cost": 0.0}
+        
+        data[today]["input"] += prompt_tokens
+        data[today]["output"] += response_tokens
+        
+        # حساب التكلفة التقديرية
+        cost = (prompt_tokens * (QAConfig.PRICE_INPUT_1M / 1_000_000)) + \
+               (response_tokens * (QAConfig.PRICE_OUTPUT_1M / 1_000_000))
+        data[today]["cost"] += cost
+        
+        with open(QAConfig.USAGE_FILE, "w") as f:
+            json.dump(data, f)
+
+    @staticmethod
+    def load_logs():
+        if os.path.exists(QAConfig.USAGE_FILE):
+            with open(QAConfig.USAGE_FILE, "r") as f:
+                return json.load(f)
+        return {}
+
+    @staticmethod
+    def get_today_stats():
+        today = datetime.now().strftime("%Y-%m-%d")
+        logs = UsageTracker.load_logs()
+        return logs.get(today, {"input": 0, "output": 0, "cost": 0.0})
 
 class QAAnalyzer:
     def __init__(self):
@@ -99,6 +140,11 @@ class QAAnalyzer:
         }
         """
         response = self.model.generate_content([prompt, audio_file], generation_config={"response_mime_type": "application/json"})
+        
+        # --- تسجيل التوكنز والمصاريف ---
+        usage = response.usage_metadata
+        UsageTracker.log_usage(usage.prompt_token_count, usage.candidates_token_count)
+        
         try:
             data = json.loads(self._clean_json(response.text))
             return data[0] if isinstance(data, list) else data
@@ -119,13 +165,10 @@ class PDFManager:
         try:
             pdf = FPDF()
             pdf.add_page()
-            
-            # Header
             pdf.set_font("Arial", 'B', 20)
             pdf.set_text_color(15, 23, 42)
             pdf.cell(0, 15, "Medical Call QA Full Report", ln=True, align='C')
             pdf.ln(5)
-            
             pdf.set_font("Arial", 'B', 12)
             pdf.set_fill_color(230, 235, 245)
             pdf.cell(0, 10, " General Overview", ln=True, fill=True)
@@ -136,32 +179,25 @@ class PDFManager:
             pdf.cell(0, 8, f"Overall Score: {res.get('Score', 'N/A')}/100", ln=True)
             pdf.cell(0, 8, f"Call Status: {res.get('Call_Status', 'N/A')}", ln=True)
             pdf.ln(5)
-
             pdf.set_font("Arial", 'B', 12)
             pdf.set_fill_color(230, 235, 245)
             pdf.cell(0, 10, " Patient & Equipment Details", ln=True, fill=True)
             pdf.set_font("Arial", '', 11)
-            
-            # Patient Grid
             pdf.cell(0, 8, f"Patient Name: {PDFManager._sanitize(res.get('Patient_Name'))}", ln=True)
             pdf.cell(0, 8, f"DOB: {PDFManager._sanitize(res.get('DOB'))}", ln=True)
             pdf.cell(0, 8, f"Phone: {PDFManager._sanitize(res.get('Phone_Number'))}", ln=True)
             pdf.cell(0, 8, f"Medicare ID: {PDFManager._sanitize(res.get('Medicare_ID'))}", ln=True)
             pdf.multi_cell(0, 8, f"Address: {PDFManager._sanitize(res.get('Address'))}")
-            
             pdf.ln(2)
             pdf.set_draw_color(150, 150, 150)
             pdf.line(10, pdf.get_y(), 200, pdf.get_y()) 
             pdf.ln(4)
-            
-            # Equipment Row
             eq = res.get('Equipment_Details', {})
             eq_text = (f"Height: {eq.get('Height', 'N/A')} | Weight: {eq.get('Weight', 'N/A')} | "
                        f"Waist: {eq.get('Waist_Size', 'N/A')} | Brace Size: {eq.get('Brace_Size', 'N/A')}")
             pdf.set_font("Arial", 'B', 11)
             pdf.multi_cell(0, 8, PDFManager._sanitize(eq_text), align='C')
             pdf.ln(5)
-            
             pdf.set_font("Arial", 'B', 12)
             pdf.set_fill_color(230, 235, 245)
             pdf.cell(0, 10, " Clinical Intelligence", ln=True, fill=True)
@@ -175,7 +211,6 @@ class PDFManager:
             )
             pdf.multi_cell(0, 8, PDFManager._sanitize(clinical_info))
             pdf.ln(5)
-
             pdf.set_font("Arial", 'B', 12)
             pdf.cell(0, 8, "Specific Medical Nuances:", ln=True)
             pdf.set_font("Arial", '', 11)
@@ -183,11 +218,9 @@ class PDFManager:
             arth_text = (f"Arthritis: Joints({', '.join(arth.get('Affected_Joints', []))}), "
                          f"Descriptor({arth.get('Pain_Descriptor')}), Triggers({', '.join(arth.get('Pain_Triggers', []))})")
             pdf.multi_cell(0, 8, PDFManager._sanitize(arth_text))
-            
             for surg in med.get('Surgical_History', []):
                 pdf.multi_cell(0, 8, PDFManager._sanitize(f"- Surgery: {surg.get('Procedure')} | Date: {surg.get('Date')} | Side: {surg.get('Side')}"))
             pdf.ln(5)
-
             pdf.set_font("Arial", 'B', 12)
             pdf.set_fill_color(230, 235, 245)
             pdf.cell(0, 10, " Provider Details", ln=True, fill=True)
@@ -199,7 +232,6 @@ class PDFManager:
                             f"DME Awareness: Cane({dme.get('Cane')}), Walker({dme.get('Walker')}), Brace({dme.get('Brace')})")
                 pdf.multi_cell(0, 8, PDFManager._sanitize(doc_text))
                 pdf.ln(2)
-
             pdf.ln(5)
             pdf.set_font("Arial", 'B', 12)
             pdf.set_fill_color(230, 235, 245)
@@ -214,28 +246,24 @@ class PDFManager:
                 pdf.ln(4)
                 pdf.line(10, pdf.get_y(), 200, pdf.get_y())
                 pdf.ln(4)
-
             pdf.ln(5)
             pdf.set_font("Arial", 'B', 12)
             pdf.set_fill_color(230, 235, 245)
             pdf.cell(0, 10, " Senior Auditor's Narrative", ln=True, fill=True)
             pdf.set_font("Arial", '', 12)
             pdf.multi_cell(0, 8, PDFManager._sanitize(res.get('Detailed_Analysis', {}).get('Narrative', 'N/A')))
-            
             pdf.ln(10)
             pdf.set_font("Arial", 'B', 12)
             pdf.cell(0, 8, "Key Strengths:", ln=True)
             pdf.set_font("Arial", '', 11)
             for s in res.get('Detailed_Analysis', {}).get('Strengths', []):
                 pdf.multi_cell(0, 8, f"- {PDFManager._sanitize(s)}")
-            
             pdf.ln(5)
             pdf.set_font("Arial", 'B', 12)
             pdf.cell(0, 8, "Key Weaknesses:", ln=True)
             pdf.set_font("Arial", '', 11)
             for w in res.get('Detailed_Analysis', {}).get('Weaknesses', []):
                 pdf.multi_cell(0, 8, f"- {PDFManager._sanitize(w)}")
-            
             output = pdf.output(dest='S')
             return output.encode('latin-1') if isinstance(output, str) else output
         except Exception as e:
@@ -273,12 +301,29 @@ class UIHandler:
             }
             .eq-item { display: flex; flex-direction: column; }
             .eq-val { font-weight: bold; color: #1e3a8a; font-size: 1.1rem; }
+            .stat-card {
+                background: #ffffff; padding: 15px; border-radius: 10px;
+                text-align: center; border: 1px solid #e2e8f0;
+            }
             </style>
             """, unsafe_allow_html=True)
 
     @staticmethod
     def render_header():
         st.markdown('<div class="main-header"><h1>🩺 Medical Call QA Dashboard</h1><p>Powered by Outsourcing Skill</p></div>', unsafe_allow_html=True)
+
+    @staticmethod
+    def render_usage_dashboard():
+        st.markdown('<div class="card-title">💰 Daily API Consumption (Estimated)</div>', unsafe_allow_html=True)
+        stats = UsageTracker.get_today_stats()
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.markdown(f'<div class="stat-card"><b>Input Tokens</b><br><span style="font-size:1.5rem; color:#2563eb;">{stats["input"]:,}</span></div>', unsafe_allow_html=True)
+        with col2:
+            st.markdown(f'<div class="stat-card"><b>Output Tokens</b><br><span style="font-size:1.5rem; color:#2563eb;">{stats["output"]:,}</span></div>', unsafe_allow_html=True)
+        with col3:
+            st.markdown(f'<div class="stat-card"><b>Est. Cost Today</b><br><span style="font-size:1.5rem; color:#dc2626; font-weight:bold;">${stats["cost"]:.4f}</span></div>', unsafe_allow_html=True)
+        st.caption("Note: Costs are estimates based on Gemini 1.5 Flash pricing.")
 
     @staticmethod
     def render_verification_step(res: Dict[str, Any]):
@@ -368,14 +413,44 @@ class UIHandler:
 
 def main():
     st.set_page_config(page_title=QAConfig.PAGE_TITLE, page_icon=QAConfig.PAGE_ICON, layout="wide")
+    
+    # --- Initializing Session States ---
     if 'analysis_result' not in st.session_state: st.session_state.analysis_result = None
     if 'verified' not in st.session_state: st.session_state.verified = False
+    if 'admin_mode' not in st.session_state: st.session_state.admin_mode = False
+    
     ui = UIHandler()
     ui.apply_styles()
     ui.render_header()
-    analyzer = QAAnalyzer()
+    
+    # --- Sidebar ---
     st.sidebar.header("📂 Upload Call Record")
     uploaded_file = st.sidebar.file_uploader("Upload MP3/WAV", type=["mp3", "wav"])
+    
+    st.sidebar.markdown("---")
+    
+    # --- Admin Access Section ---
+    with st.sidebar.expander("🔐 Admin Access"):
+        if not st.session_state.admin_mode:
+            pwd = st.text_input("Enter Admin Password", type="password")
+            if st.button("Login as Admin"):
+                if pwd == QAConfig.ADMIN_PASSWORD:
+                    st.session_state.admin_mode = True
+                    st.rerun()
+                else:
+                    st.error("Wrong password!")
+        else:
+            st.success("Admin Mode Active")
+            if st.button("Logout Admin"):
+                st.session_state.admin_mode = False
+                st.rerun()
+
+    # --- Rendering Billing Dashboard (Only for Admin) ---
+    if st.session_state.admin_mode:
+        ui.render_usage_dashboard()
+        st.markdown("---")
+
+    analyzer = QAAnalyzer()
     if uploaded_file:
         st.sidebar.audio(uploaded_file, format='audio/mp3')
         if st.sidebar.button("🚀 Analyze Call Now"):
