@@ -14,7 +14,7 @@ class QAConfig:
     PRICE_INPUT_1M = 0.075  
     PRICE_OUTPUT_1M = 0.30  
     USAGE_FILE = "usage_log.json"
-    MODEL_NAME = 'gemini-1.5-flash'
+    MODEL_NAME = 'models/gemini-flash-latest'
     PAGE_TITLE = "Medical Call QA Dashboard"
     PAGE_ICON = "🩺"
 
