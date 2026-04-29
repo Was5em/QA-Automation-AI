@@ -10,17 +10,14 @@ from fpdf import FPDF
 
 class QAConfig:
     API_KEY = st.secrets.get("GOOGLE_API_KEY", "AIzaSyDjOP3Ps9lsLAeEp5bgexGMAn7AJqn04Ek")
-    # --- إعدادات المدير والحسابات ---
-    ADMIN_PASSWORD = st.secrets.get("ADMIN_PASSWORD", "admin123") # يمكنك تغيير كلمة السر هنا
-    PRICE_INPUT_1M = 0.075  # سعر المليون توكن مدخل (Gemini 1.5 Flash)
-    PRICE_OUTPUT_1M = 0.30  # سعر المليون توكن مخرج (Gemini 1.5 Flash)
+    ADMIN_PASSWORD = st.secrets.get("ADMIN_PASSWORD", "admin123") 
+    PRICE_INPUT_1M = 0.075  
+    PRICE_OUTPUT_1M = 0.30  
     USAGE_FILE = "usage_log.json"
-    # -----------------------------
-    MODEL_NAME = 'models/gemini-1.5-flash-latest'
+    MODEL_NAME = 'gemini-1.5-flash'
     PAGE_TITLE = "Medical Call QA Dashboard"
     PAGE_ICON = "🩺"
 
-# --- نظام تتبع الاستهلاك والمصاريف ---
 class UsageTracker:
     @staticmethod
     def log_usage(prompt_tokens: int, response_tokens: int):
@@ -33,7 +30,6 @@ class UsageTracker:
         data[today]["input"] += prompt_tokens
         data[today]["output"] += response_tokens
         
-        # حساب التكلفة التقديرية
         cost = (prompt_tokens * (QAConfig.PRICE_INPUT_1M / 1_000_000)) + \
                (response_tokens * (QAConfig.PRICE_OUTPUT_1M / 1_000_000))
         data[today]["cost"] += cost
@@ -141,7 +137,6 @@ class QAAnalyzer:
         """
         response = self.model.generate_content([prompt, audio_file], generation_config={"response_mime_type": "application/json"})
         
-        # --- تسجيل التوكنز والمصاريف ---
         usage = response.usage_metadata
         UsageTracker.log_usage(usage.prompt_token_count, usage.candidates_token_count)
         
@@ -414,7 +409,6 @@ class UIHandler:
 def main():
     st.set_page_config(page_title=QAConfig.PAGE_TITLE, page_icon=QAConfig.PAGE_ICON, layout="wide")
     
-    # --- Initializing Session States ---
     if 'analysis_result' not in st.session_state: st.session_state.analysis_result = None
     if 'verified' not in st.session_state: st.session_state.verified = False
     if 'admin_mode' not in st.session_state: st.session_state.admin_mode = False
@@ -423,13 +417,11 @@ def main():
     ui.apply_styles()
     ui.render_header()
     
-    # --- Sidebar ---
     st.sidebar.header("📂 Upload Call Record")
     uploaded_file = st.sidebar.file_uploader("Upload MP3/WAV", type=["mp3", "wav"])
     
     st.sidebar.markdown("---")
     
-    # --- Admin Access Section ---
     with st.sidebar.expander("🔐 Admin Access"):
         if not st.session_state.admin_mode:
             pwd = st.text_input("Enter Admin Password", type="password")
@@ -445,7 +437,6 @@ def main():
                 st.session_state.admin_mode = False
                 st.rerun()
 
-    # --- Rendering Billing Dashboard (Only for Admin) ---
     if st.session_state.admin_mode:
         ui.render_usage_dashboard()
         st.markdown("---")
