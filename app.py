@@ -18,21 +18,6 @@ class QAConfig:
     PAGE_TITLE = "Medical Call QA Dashboard"
     PAGE_ICON = "🩺"
 
-    # --- الـ Call Script الرسمي مدمج هنا ليكون مرجعاً للـ AI ---
-    OFFICIAL_SCRIPT = """
-    MEDICAL ALERT SYSTEM - CALL SCRIPT
-    1. Introduction: Options 1-5 (Verify identity, introduce as medical alert specialist, check if they have a system).
-    2. Scenarios: 
-       - Scenario A (No system): Ask about HBP/HCL/Diabetes, chronic conditions, balance/dizziness, medications, living alone.
-       - Scenario B (Has system): Check if it's a necklace, monthly payment amount, experience with it.
-    3. Product Description: Small life-saving device, 24/7 protection, water-resistant, automatic fall detection, emergency contacts.
-    4. Smartwatch Features: Blood pressure, steps, medication reminders, health monitoring.
-    5. Pricing: No upfront cost. Necklace: $40/mo, Smartwatch: $45/mo.
-    6. Information Gathering: Phone type, DOB, Shipping Address, Payment Method, Emergency Contact, Old company name.
-    7. Transfer: Connect to verification department, Disclosure of device name and monthly fees.
-    8. Rebuttals: Specific responses for "Can't afford", "Already have one", "Not interested", "Healthy", etc.
-    """
-
 class UsageTracker:
     @staticmethod
     def log_usage(prompt_tokens: int, response_tokens: int):
@@ -78,18 +63,29 @@ class QAAnalyzer:
             time.sleep(2)
             audio_file = genai.get_file(audio_file.name)
         
-        # --- البرومبت المدمج: يجمع بين مراقبة السيناريو واستخراج البيانات ---
-        prompt = f"""
-        Act as an expert Senior Medical QA Auditor. You are analyzing a call based on the following OFFICIAL SCRIPT:
-        {QAConfig.OFFICIAL_SCRIPT}
+        # --- البرومبت الجديد المعتمد كلياً على السكريبت المرفق ---
+        prompt = """
+        Act as a strict Senior Medical QA Auditor. Your sole reference for this audit is the OFFICIAL CALL SCRIPT.
+        
+        OFFICIAL SCRIPT GUIDELINES:
+        1. Introduction: Must use one of the 5 options (Identify patient, introduce as medical alert specialist, check for existing system).
+        2. Scenario Path:
+           - If NO system: Must ask about HBP/HCL/Diabetes, chronic conditions, balance/dizziness, medications, and living alone.
+           - If YES system: Must ask about device type (necklace), monthly cost, and experience.
+        3. Product Description: Must mention 24/7 protection, water-resistance, and automatic fall detection.
+        4. Smartwatch Add-on: If watch is chosen, must mention BP, heart rate, steps, and medication reminders.
+        5. Pricing: Must state NO UPFRONT COST. Necklace = $40/mo, Smartwatch = $45/mo.
+        6. Info Gathering: Must collect Phone Type, DOB, Shipping Address, Payment Method, Emergency Contact, and Old Company (if applicable).
+        7. Closing/Transfer: Must perform the Disclosure and receive a clear 'YES'.
+        8. Rebuttals: Must use the specific rebuttals provided for objections like 'can't afford' or 'not interested'.
 
-        TASK:
-        1. Perform a microscopic analysis to see if the agent followed the script sections (Introduction, Scenario A/B, Product Description, Pricing, Information Gathering, and Closing).
-        2. Evaluate the agent's use of Rebuttals when the patient objected.
-        3. Extract all clinical and personal data into the JSON schema below.
+        AUDIT TASK:
+        - Check if the agent followed the sequence and wording of the script.
+        - Identify exactly which script steps were missed.
+        - Extract all captured patient data.
 
         STRICT JSON OUTPUT SCHEMA:
-        {{
+        {
           "Agent_Name": "<String>",
           "Call_Date": "<String>",
           "Patient_Name": "<String>",
@@ -97,48 +93,37 @@ class QAAnalyzer:
           "Address": "<String>",
           "Phone_Number": "<String>",
           "Medicare_ID": "<String>",
-          "Script_Adherence": {{
-            "Intro_Followed": "<YES/NO>",
-            "Product_Explained": "<YES/NO>",
-            "Pricing_Correct": "<YES/NO>",
-            "Info_Gathered_Complete": "<YES/NO>",
-            "Closing_Correct": "<YES/NO>",
-            "Missing_Steps": ["<List of missed script parts>"]
-          }},
-          "Medical_History": {{
+          "Script_Adherence": {
+            "Intro_Correct": "<YES/NO>",
+            "Correct_Scenario_Used": "<Scenario A / Scenario B / NO>",
+            "Health_Questions_Asked": "<YES/NO>",
+            "Product_Description_Complete": "<YES/NO>",
+            "Pricing_Quoted_Correctly": "<YES/NO>",
+            "Info_Gathering_Complete": "<YES/NO>",
+            "Disclosure_Confirmed_YES": "<YES/NO>",
+            "Missing_Steps": ["<List specific missing parts of the script>"]
+          },
+          "Medical_History": {
             "Kidney_Disease": "<YES/NO/NOT_MENTIONED>",
             "Cancer": "<YES/NO/NOT_MENTIONED>",
             "Memory_Loss": "<YES/NO/NOT_MENTIONED>",
             "Cognitive_Impairment": "<YES/NO/NOT_MENTIONED>",
             "Caregiver": "<YES/NO>",
             "Medications": ["<String>"],
-            "Arthritis_Details": {{
-              "Affected_Joints": ["<String>"],
-              "Pain_Descriptor": "<String>",
-              "Pain_Triggers": ["<String>"],
-              "Pain_Pattern": "<String>"
-            }},
-            "Surgical_History": [
-              {{ "Procedure": "<String>", "Date": "<String>", "Side": "<String>", "Status": "<String>", "Patient_Expectation": "<String>" }}
-            ]
-          }},
-          "Doctor_Details": [
-            {{ "Name": "<String>", "Specialty": "<String>", "Last_Visit": "<String>", "Selection_Reason": "<String>", "DME_Awareness": {{ "Cane": "YES/NO", "Walker": "YES/NO", "Brace": "YES/NO" }} }}
-          ],
-          "Objection_Handling": [
-            {{ "Objection_Number": "<Integer>", "Category": "<String>", "Patient_Reasoning": "<String>", "Agent_Response": "<String>", "Resolution": "<String>" }}
-          ],
-          "Equipment_Details": {{
-            "Brace_Size": "<String>", "Waist_Size": "<String>", "Height": "<String>", "Weight": "<String>"
-          }},
-          "Score": "<Integer>",
+            "Arthritis_Details": { "Affected_Joints": [], "Pain_Descriptor": "", "Pain_Triggers": [], "Pain_Pattern": "" },
+            "Surgical_History": [ { "Procedure": "", "Date": "", "Side": "", "Status": "", "Patient_Expectation": "" } ]
+          },
+          "Doctor_Details": [ { "Name": "", "Specialty": "", "Last_Visit": "", "Selection_Reason": "", "DME_Awareness": { "Cane": "YES/NO", "Walker": "YES/NO", "Brace": "YES/NO" } } ],
+          "Objection_Handling": [ { "Objection_Number": 0, "Category": "", "Patient_Reasoning": "", "Agent_Response": "", "Resolution": "" } ],
+          "Equipment_Details": { "Brace_Size": "", "Waist_Size": "", "Height": "", "Weight": "" },
+          "Score": <Integer>,
           "Call_Status": "<Pass/Fail>",
-          "Detailed_Analysis": {{
+          "Detailed_Analysis": {
             "Strengths": ["<String>"],
             "Weaknesses": ["<String>"],
-            "Narrative": "<String>"
-          }}
-        }}
+            "Narrative": "<Detailed audit narrative focusing on script adherence>"
+          }
+        }
         """
         response = self.model.generate_content([prompt, audio_file], generation_config={"response_mime_type": "application/json"})
         usage = response.usage_metadata
@@ -176,16 +161,17 @@ class PDFManager:
             pdf.cell(0, 8, f"Call Status: {res.get('Call_Status', 'N/A')}", ln=True)
             pdf.ln(5)
             
-            # --- Script Adherence Section in PDF ---
             pdf.set_font("Arial", 'B', 12)
             pdf.set_fill_color(230, 235, 245)
             pdf.cell(0, 10, " Script Adherence", ln=True, fill=True)
             pdf.set_font("Arial", '', 11)
             ad = res.get('Script_Adherence', {})
-            pdf.cell(0, 8, f"Intro Followed: {ad.get('Intro_Followed')}", ln=True)
-            pdf.cell(0, 8, f"Product Explained: {ad.get('Product_Explained')}", ln=True)
-            pdf.cell(0, 8, f"Pricing Correct: {ad.get('Pricing_Correct')}", ln=True)
-            pdf.cell(0, 8, f"Info Gathered: {ad.get('Info_Gathered_Complete')}", ln=True)
+            pdf.cell(0, 8, f"Intro Correct: {ad.get('Intro_Correct')}", ln=True)
+            pdf.cell(0, 8, f"Scenario Used: {ad.get('Correct_Scenario_Used')}", ln=True)
+            pdf.cell(0, 8, f"Health Questions Asked: {ad.get('Health_Questions_Asked')}", ln=True)
+            pdf.cell(0, 8, f"Product Description Complete: {ad.get('Product_Description_Complete')}", ln=True)
+            pdf.cell(0, 8, f"Pricing Correct: {ad.get('Pricing_Corrected')}", ln=True)
+            pdf.cell(0, 8, f"Disclosure Confirmed: {ad.get('Disclosure_Confirmed_YES')}", ln=True)
             pdf.multi_cell(0, 8, f"Missing Steps: {', '.join(ad.get('Missing_Steps', []))}")
             pdf.ln(5)
 
@@ -263,16 +249,17 @@ class UIHandler:
         with col2:
             st.markdown(f"""<div class="custom-card"><div class="card-title">👤 Call Info</div><div style="font-size: 1.1rem;"><span class="data-label">Agent:</span> {res.get('Agent_Name', 'N/A')}<br><span class="data-label">Date:</span> {res.get('Call_Date', 'N/A')}</div></div>""", unsafe_allow_html=True)
         
-        # --- Script Adherence UI ---
         st.markdown('<div class="card-title">📜 Script Adherence</div>', unsafe_allow_html=True)
         ad = res.get('Script_Adherence', {})
         st.markdown(f"""
             <div class="custom-card">
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-                    <div><span class="data-label">Intro Followed:</span> {ad.get('Intro_Followed')}</div>
-                    <div><span class="data-label">Product Explained:</span> {ad.get('Product_Explained')}</div>
-                    <div><span class="data-label">Pricing Correct:</span> {ad.get('Pricing_Correct')}</div>
-                    <div><span class="data-label">Info Complete:</span> {ad.get('Info_Gathered_Complete')}</div>
+                    <div><span class="data-label">Intro Correct:</span> {ad.get('Intro_Correct')}</div>
+                    <div><span class="data-label">Scenario Used:</span> {ad.get('Correct_Scenario_Used')}</div>
+                    <div><span class="data-label">Health Questions Asked:</span> {ad.get('Health_Questions_Asked')}</div>
+                    <div><span class="data-label">Product Desc Complete:</span> {ad.get('Product_Description_Complete')}</div>
+                    <div><span class="data-label">Pricing Correct:</span> {ad.get('Pricing_Corrected')}</div>
+                    <div><span class="data-label">Disclosure Confirmed:</span> {ad.get('Disclosure_Confirmed_YES')}</div>
                 </div>
                 <div style="margin-top:10px;"><b>Missing/Failed Steps:</b> {', '.join(ad.get('Missing_Steps', []))}</div>
             </div>
