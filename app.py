@@ -63,26 +63,22 @@ class QAAnalyzer:
             time.sleep(2)
             audio_file = genai.get_file(audio_file.name)
         
-        # --- البرومبت الجديد المعتمد كلياً على السكريبت المرفق ---
         prompt = """
-        Act as a strict Senior Medical QA Auditor. Your sole reference for this audit is the OFFICIAL CALL SCRIPT.
-        
-        OFFICIAL SCRIPT GUIDELINES:
-        1. Introduction: Must use one of the 5 options (Identify patient, introduce as medical alert specialist, check for existing system).
-        2. Scenario Path:
-           - If NO system: Must ask about HBP/HCL/Diabetes, chronic conditions, balance/dizziness, medications, and living alone.
-           - If YES system: Must ask about device type (necklace), monthly cost, and experience.
-        3. Product Description: Must mention 24/7 protection, water-resistance, and automatic fall detection.
-        4. Smartwatch Add-on: If watch is chosen, must mention BP, heart rate, steps, and medication reminders.
-        5. Pricing: Must state NO UPFRONT COST. Necklace = $40/mo, Smartwatch = $45/mo.
-        6. Info Gathering: Must collect Phone Type, DOB, Shipping Address, Payment Method, Emergency Contact, and Old Company (if applicable).
-        7. Closing/Transfer: Must perform the Disclosure and receive a clear 'YES'.
-        8. Rebuttals: Must use the specific rebuttals provided for objections like 'can't afford' or 'not interested'.
+        Act as a Senior Medical QA Auditor. Analyze the call based on the following 6-pillar scoring system:
 
-        AUDIT TASK:
-        - Check if the agent followed the sequence and wording of the script.
-        - Identify exactly which script steps were missed.
-        - Extract all captured patient data.
+        SCORING PILLARS:
+        1. Opening & Compliance: Evaluate greeting, tone, and purpose delivery.
+        2. Qualification: Evaluate how the agent confirmed info and built the case for the sale.
+        3. Product Explanation: Evaluate how the agent linked product features to the patient's needs.
+        4. Pricing Transparency: Evaluate clarity and attraction of the pricing presentation.
+        5. Billing & Payment: Evaluate how well the payment process was explained.
+        6. Transfer & Disclosure: Evaluate the smoothness of the transfer and the accuracy of the disclosure.
+
+        TASK:
+        - Assign a numerical score for each pillar.
+        - Write a detailed qualitative feedback (comment) for each pillar.
+        - Calculate the total overall score.
+        - Extract patient personal and medical data.
 
         STRICT JSON OUTPUT SCHEMA:
         {
@@ -93,15 +89,13 @@ class QAAnalyzer:
           "Address": "<String>",
           "Phone_Number": "<String>",
           "Medicare_ID": "<String>",
-          "Script_Adherence": {
-            "Intro_Correct": "<YES/NO>",
-            "Correct_Scenario_Used": "<Scenario A / Scenario B / NO>",
-            "Health_Questions_Asked": "<YES/NO>",
-            "Product_Description_Complete": "<YES/NO>",
-            "Pricing_Quoted_Correctly": "<YES/NO>",
-            "Info_Gathering_Complete": "<YES/NO>",
-            "Disclosure_Confirmed_YES": "<YES/NO>",
-            "Missing_Steps": ["<List specific missing parts of the script>"]
+          "Detailed_Scoring": {
+            "Opening_Compliance": {"score": <Int>, "feedback": "<String>"},
+            "Qualification": {"score": <Int>, "feedback": "<String>"},
+            "Product_Explanation": {"score": <Int>, "feedback": "<String>"},
+            "Pricing_Transparency": {"score": <Int>, "feedback": "<String>"},
+            "Billing_Payment": {"score": <Int>, "feedback": "<String>"},
+            "Transfer_Disclosure": {"score": <Int>, "feedback": "<String>"}
           },
           "Medical_History": {
             "Kidney_Disease": "<YES/NO/NOT_MENTIONED>",
@@ -121,7 +115,7 @@ class QAAnalyzer:
           "Detailed_Analysis": {
             "Strengths": ["<String>"],
             "Weaknesses": ["<String>"],
-            "Narrative": "<Detailed audit narrative focusing on script adherence>"
+            "Narrative": "<Detailed summary of the overall performance>"
           }
         }
         """
@@ -161,18 +155,18 @@ class PDFManager:
             pdf.cell(0, 8, f"Call Status: {res.get('Call_Status', 'N/A')}", ln=True)
             pdf.ln(5)
             
+            # --- Detailed Scoring in PDF ---
             pdf.set_font("Arial", 'B', 12)
             pdf.set_fill_color(230, 235, 245)
-            pdf.cell(0, 10, " Script Adherence", ln=True, fill=True)
+            pdf.cell(0, 10, " Detailed QA Feedback", ln=True, fill=True)
             pdf.set_font("Arial", '', 11)
-            ad = res.get('Script_Adherence', {})
-            pdf.cell(0, 8, f"Intro Correct: {ad.get('Intro_Correct')}", ln=True)
-            pdf.cell(0, 8, f"Scenario Used: {ad.get('Correct_Scenario_Used')}", ln=True)
-            pdf.cell(0, 8, f"Health Questions Asked: {ad.get('Health_Questions_Asked')}", ln=True)
-            pdf.cell(0, 8, f"Product Description Complete: {ad.get('Product_Description_Complete')}", ln=True)
-            pdf.cell(0, 8, f"Pricing Correct: {ad.get('Pricing_Corrected')}", ln=True)
-            pdf.cell(0, 8, f"Disclosure Confirmed: {ad.get('Disclosure_Confirmed_YES')}", ln=True)
-            pdf.multi_cell(0, 8, f"Missing Steps: {', '.join(ad.get('Missing_Steps', []))}")
+            scoring = res.get('Detailed_Scoring', {})
+            for category, data in scoring.items():
+                pdf.set_font("Arial", 'B', 11)
+                pdf.cell(0, 8, f"{category.replace('_', ' ')}: {data.get('score')}", ln=True)
+                pdf.set_font("Arial", '', 11)
+                pdf.multi_cell(0, 8, PDFManager._sanitize(data.get('feedback')))
+                pdf.ln(2)
             pdf.ln(5)
 
             pdf.set_font("Arial", 'B', 12)
@@ -211,6 +205,7 @@ class UIHandler:
             .eq-item { display: flex; flex-direction: column; }
             .eq-val { font-weight: bold; color: #1e3a8a; font-size: 1.1rem; }
             .stat-card { background: #ffffff; padding: 15px; border-radius: 10px; text-align: center; border: 1px solid #e2e8f0; }
+            .score-badge { background: #1e3a8a; color: white; padding: 2px 8px; border-radius: 5px; font-weight: bold; margin-right: 10px; }
             </style>
             """, unsafe_allow_html=True)
 
@@ -249,21 +244,20 @@ class UIHandler:
         with col2:
             st.markdown(f"""<div class="custom-card"><div class="card-title">👤 Call Info</div><div style="font-size: 1.1rem;"><span class="data-label">Agent:</span> {res.get('Agent_Name', 'N/A')}<br><span class="data-label">Date:</span> {res.get('Call_Date', 'N/A')}</div></div>""", unsafe_allow_html=True)
         
-        st.markdown('<div class="card-title">📜 Script Adherence</div>', unsafe_allow_html=True)
-        ad = res.get('Script_Adherence', {})
-        st.markdown(f"""
-            <div class="custom-card">
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-                    <div><span class="data-label">Intro Correct:</span> {ad.get('Intro_Correct')}</div>
-                    <div><span class="data-label">Scenario Used:</span> {ad.get('Correct_Scenario_Used')}</div>
-                    <div><span class="data-label">Health Questions Asked:</span> {ad.get('Health_Questions_Asked')}</div>
-                    <div><span class="data-label">Product Desc Complete:</span> {ad.get('Product_Description_Complete')}</div>
-                    <div><span class="data-label">Pricing Correct:</span> {ad.get('Pricing_Corrected')}</div>
-                    <div><span class="data-label">Disclosure Confirmed:</span> {ad.get('Disclosure_Confirmed_YES')}</div>
+        # --- Detailed QA Scoring UI (Mirroring the images) ---
+        st.markdown('<div class="card-title">📋 Detailed QA Feedback</div>', unsafe_allow_html=True)
+        scoring = res.get('Detailed_Scoring', {})
+        for category, data in scoring.items():
+            cat_name = category.replace('_', ' ')
+            st.markdown(f"""
+                <div class="custom-card">
+                    <div style="display: flex; align-items: center; margin-bottom: 10px;">
+                        <span class="score-badge">{data.get('score')}</span>
+                        <span style="font-weight: bold; color: #1e3a8a; font-size: 1.1rem;">{cat_name}</span>
+                    </div>
+                    <div style="color: #475569; line-height: 1.5;">{data.get('feedback')}</div>
                 </div>
-                <div style="margin-top:10px;"><b>Missing/Failed Steps:</b> {', '.join(ad.get('Missing_Steps', []))}</div>
-            </div>
-        """, unsafe_allow_html=True)
+            """, unsafe_allow_html=True)
 
         st.markdown('<div class="card-title">👤 Patient & Equipment Details</div>', unsafe_allow_html=True)
         st.markdown(f"""<div class="custom-card"><div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 20px;"><div><span class="data-label">Patient Name:</span> {res.get('Patient_Name', 'N/A')}</div><div><span class="data-label">DOB:</span> {res.get('DOB', 'N/A')}</div><div><span class="data-label">Phone:</span> {res.get('Phone_Number', 'N/A')}</div><div><span class="data-label">Medicare ID:</span> {res.get('Medicare_ID', 'N/A')}</div><div style="grid-column: span 2;"><span class="data-label">Address:</span> {res.get('Address', 'N/A')}</div></div><div style="border-top: 1px dashed #ccc; margin: 15px 0;"></div><div class="equipment-row"><div class="eq-item"><span class="data-label" style="width:auto;">Height</span><span class="eq-val">{res.get('Equipment_Details', {}).get('Height', 'N/A')}</span></div><div class="eq-item"><span class="data-label" style="width:auto;">Weight</span><span class="eq-val">{res.get('Equipment_Details', {}).get('Weight', 'N/A')}</span></div><div class="eq-item"><span class="data-label" style="width:auto;">Waist Size</span><span class="eq-val">{res.get('Equipment_Details', {}).get('Waist_Size', 'N/A')}</span></div><div class="eq-item"><span class="data-label" style="width:auto;">Brace Size</span><span class="eq-val">{res.get('Equipment_Details', {}).get('Brace_Size', 'N/A')}</span></div></div></div>""", unsafe_allow_html=True)
